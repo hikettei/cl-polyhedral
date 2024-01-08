@@ -15,8 +15,14 @@ which can supercharge the matrix operations in the Common Lisp. e.g.: optimizing
 
 ```lisp
 (with-polyhedral
-  (pfor (i 10)
-    (pfor (k 10)
-      ...)))
+(pfor (i 10)
+(pfor (k 10)
+...)))
 ```
+
+# TODO
+
+- Remove Qlot dependencies
+
+- Detailed Installing Steps (ISL, GMP)
 

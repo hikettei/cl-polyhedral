@@ -3,13 +3,13 @@
   :description "Abstract Polyhedral Compiler for Common Lisp"
   :author      "hikettei <ichndm@gmail.com>"
   :licence     "MIT"
-  :depends-on (#:linear-programming
-	       #:mgl-pax
-	       #:cl-isl)
+  :depends-on (#:mgl-pax #:cffi #:alexandria #:cl-isl)
   :components
-  ((:file "source/package"))
+  ((:file "source/package")
+   (:file "source/graph")
+   (:file "source/polyhedral"))
   :in-order-to
-  ((test-op (asdf:test-op cl-metal/test))))    
+  ((test-op (asdf:test-op cl-polyhedral/test))))    
 
 (asdf:defsystem :cl-polyhedral/test
   :description ""

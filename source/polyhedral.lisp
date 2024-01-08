@@ -6,15 +6,12 @@
      &key
        (verbose nil)
        (threads nil))
-  "Gains the optimized kernel obtained from transforming the given kernel using Polyhedral Model. Does the following:
-- Creates a constraint
-- ..."
+  "Gains the optimized kernel obtained from transforming the given kernel using Polyhedral Model.
+Does the following:
+- 1. Creates a context and space for ISL
+- 
+"
   (declare (type Kernel kernel))
-  (let ((context))
-    (labels ((instructions ()
 
-	       ))
-
-
-      )))
+  )
 
