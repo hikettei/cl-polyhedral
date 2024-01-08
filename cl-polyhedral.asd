@@ -3,7 +3,7 @@
   :description "Abstract Polyhedral Compiler for Common Lisp"
   :author      "hikettei <ichndm@gmail.com>"
   :licence     "MIT"
-  :depends-on (#:mgl-pax #:cffi #:alexandria #:cl-isl)
+  :depends-on (#:mgl-pax #:cffi #:alexandria #:cl-isl #:trivia)
   :components
   ((:file "source/package")
    (:file "source/graph")
