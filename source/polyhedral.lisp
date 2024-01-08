@@ -37,6 +37,6 @@ e.g.: [A, B, C]"
 
       )))
 
-#+(and)
+#+(or)
 (run-polyhedral nil)
   

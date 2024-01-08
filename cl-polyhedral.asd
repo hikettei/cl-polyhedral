@@ -7,6 +7,8 @@
   :components
   ((:file "source/package")
    (:file "source/graph")
+   (:file "source/graph-constructor")
+   (:file "source/isl")
    (:file "source/polyhedral"))
   :in-order-to
   ((test-op (asdf:test-op cl-polyhedral/test))))    

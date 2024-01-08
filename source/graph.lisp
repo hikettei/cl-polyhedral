@@ -17,14 +17,16 @@
 
 (defstruct (Instruction
 	    (:conc-name inst-)
-	    (:constructor make-instruction (op body &optional (depends-on nil) (conds nil))))
+	    (:constructor make-instruction (op body target sources &optional (depends-on nil) (conds nil))))
   "Represents an instruction.
 - op[variable-t]     a symbol representing the operation
 - body[list]         expressing in the op
 - depends-on[list] ids of instructions that this instruction depends on
 - conds[list]        expression for condition of this instruction, if instruction is placed in an if/elseif/else block"
-  (op         op   :type Variable-T)
-  (body       body :type Expr)
+  (op         op      :type Variable-T)
+  (body       body    :type Expr)
+  (target     target  :type Expr)
+  (sources    sources :type (array Expr (*)))
   (depends-on depends-on :type list)
   (conds      conds :type Expr)
   (id         (gensym "OPID") :type Expr))
