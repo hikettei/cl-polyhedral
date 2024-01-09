@@ -9,7 +9,9 @@
    (:file "source/graph")
    (:file "source/graph-constructor")
    (:file "source/isl")
-   (:file "source/polyhedral"))
+   (:file "source/utils")
+   (:file "source/polyhedral")
+   (:file "source/codegen"))
   :in-order-to
   ((test-op (asdf:test-op cl-polyhedral/test))))    
 

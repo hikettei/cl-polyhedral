@@ -3,7 +3,7 @@
 
 ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ;;  A Set of CFFI Bindings for ISL and utils for it.
-;; (Complements functions which cl-autowrap couldn't handle with)
+;; (Which complements the lack of functions in the cl-isl binding)
 ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 (defmacro with-isl-ctx (bind &body body)

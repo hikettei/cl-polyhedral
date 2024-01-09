@@ -8,10 +8,6 @@
 ;;                                           -> Optimized and fused Lisp, Clang, CUDA, etc...
 ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-;; TODO: FuseOp Scheduler
-;; TODO: Codegen Header部分とBody部分に分ける
-;; Since the goal is to work on any backends
-
 (trivia:defpattern range-pattern
     (bind from to by)
     ;; Range ... (from to by) (from to) (to)
@@ -41,7 +37,14 @@ Body is represented as a simple DSL consisted of only:
 - (when expression &rest body)
 - (aref tensor-id &rest references)
 
-Args ... (:X :Y :Z), Buffers ... a list of buffers"
+Args ... (:X :Y :Z), Buffers ... a list of buffers
+
+Examples:
+
+```lisp
+TODO
+```
+"
   (declare (type list buffers body)
 	   ;;(optimize (speed 3))
 	   )
@@ -193,21 +196,26 @@ Args ... (:X :Y :Z), Buffers ... a list of buffers"
 ;; Output. Kernel(a list of instructions, a list of domains
 ;; To Support: If (Conditional)
 
+;; TODO: Conditionが指定できるもの：
+;;   - and, or, Binary compare < <= > >=
+;;   - index comparison
+;;   - mod
+
+;; Example
+;;  This example includes all syntax used in the DSL
 #+(or)
-(print
+(time
  (make-kernel-from-dsl
   (list
    (make-buffer :X `(10 10) :FLOAT)
    (make-buffer :Y `(10 10) :FLOAT)
    (make-buffer :Z `(10 10) :FLOAT))
-  `(for (i 0 10 1)
-	(for (j 0 1 1)
-	     (setf (aref :X i j) (aref :Y i j))
-	     (setf (aref :X i) 0)
-	     ))
+  `(for (i 10)
+	(for (j 0 1)
+	     (when (> i 2)
+	       (setf (aref :X i j) (aref :Y i j)))
+	     (setf (aref :X i) 0)))
   `(for (i 0 10 1)
 	(for (j 0 10 1)
-	     (setf (aref :X i j) (+ (aref :Y i j)))))))
-
-;; TODO: Several Kernels Fusion?
+	     (setf (aref :X i j) (+ (aref :Y i j) (aref :Z i j)))))))
 

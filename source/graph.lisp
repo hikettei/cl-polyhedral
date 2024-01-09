@@ -4,6 +4,11 @@
 (deftype Variable-T () `(or symbol keyword))
 (deftype Expr () `(or list fixnum symbol))
 
+;; TODO: Writing sections for
+;;   - Graph Structure
+;;   - Graph Construction (Make-Kernel-From-DSL)
+;;   - User-defined codegen backend
+
 (defsection @graph-representation (:title "Graph Representations")
   (instruction struct)
   (Domain      struct))
@@ -26,7 +31,7 @@
   (op         op      :type Variable-T)
   (body       body    :type Expr)
   (target     target  :type Expr)
-  (sources    sources :type (array Expr (*)))
+  (sources    sources :type (simple-array Expr (*)))
   (depends-on depends-on :type list)
   (conds      conds :type Expr)
   (id         (gensym "OPID") :type Expr))
@@ -38,7 +43,7 @@
 - subscript[symbol] a symbol indicating the loop iterator
 - from, to, by[one of list, fixnum, or symbol] the bound of iteration. [from, to) by `by`
 - depends-on[list] a list of symbol depends on."
-  (instructions instructions :type (array Instruction (*)))
+  (instructions instructions :type (simple-array Instruction (*)))
   (subscript    subscript    :type Variable-T)
   (from         from :type Expr)
   (to           to   :type Expr)
@@ -53,11 +58,9 @@
 - args[list] arguments to the kernel
 - argtypes[list] types of the argument kernel
 - consts[list] a list of constants in the kernel"
-  (instructions instructions :type (array Instruction (*)))
-  (domains      domains      :type (array Domain (*)))
-  (args         args         :type (array Buffer (*)))
-  (constants constants       :type (array Buffer (*))))
+  (instructions instructions :type (simple-array Instruction (*)))
+  (domains      domains      :type (simple-array Domain (*)))
+  (args         args         :type (simple-array Buffer (*)))
+  (constants constants       :type (simple-array Buffer (*))))
 
-;; Graph Constructors
 
-;; Creating a DSL?
