@@ -5,4 +5,4 @@
 ("cl-isl" .
  (:class qlot/source/github:source-github
   :initargs (:repos "hikettei/cl-isl" :ref nil :branch nil :tag nil)
-  :version "github-09315f9471337e2763fdb416d4e3b74b5bf073d9"))
+  :version "github-24e01981ea79e3b17447b55cc4b951a6c6b67274"))

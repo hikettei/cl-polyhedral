@@ -24,11 +24,16 @@ Does the following:
 
       (multiple-value-bind (may-read may-write)
 	  (access-isl-rep kernel)
-
+	(multiple-value-bind
+	      (may-read may-write)
+	    (values
+	     (isl-union-map-read-from-str ctx may-read)
+	     (isl-union-map-read-from-str ctx may-write))
+	     
 	(print may-read)
 	(print may-write)
 
-	))))
+	)))))
 
 ;; Running example
 #+(or)
