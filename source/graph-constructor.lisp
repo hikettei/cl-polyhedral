@@ -39,6 +39,14 @@ Body is represented as a simple DSL consisted of only:
 
 Args ... (:X :Y :Z), Buffers ... a list of buffers
 
+;; Output. Kernel(a list of instructions, a list of domains
+;; To Support: If (Conditional)
+
+;; TODO: Conditionが指定できるもの：
+;;   - and, or, Binary compare < <= > >=
+;;   - index comparison
+;;   - mod
+
 Examples:
 
 ```lisp
@@ -193,13 +201,28 @@ TODO
      (to-array 'Buffer      buffers)
      (to-array 'Buffer      buffers))))
 
-;; Output. Kernel(a list of instructions, a list of domains
-;; To Support: If (Conditional)
+(defun lisp->isl (expr)
+  (declare (optimize (speed 3)))
+  (trivia:ematch expr
+    ((or (type symbol) (type number))
+     (format nil "~a" expr))
+    ((list '- x)
+     (format nil "-~a" x))
+    ((list* (or '+ '- '* '/) _)
+     (let ((op   (car expr))
+	   (args (map 'list #'lisp->isl (cdr expr))))
+       (flet ((helper (x y)
+		(format nil "~a~(~a~)~a" x op y)))
+	 (reduce #'helper args))))
+    ((list* (or 'or 'and) _)
+     (let ((op   (car expr))
+	   (args (map 'list #'lisp->isl (cdr expr))))
+       (flet ((helper (x y)
+		(format nil "~a ~(~a~) ~a" x op y)))
+	 (reduce #'helper args))))
+    ((list (or '> '>= '< '<=) lhs rhs)
+     (format nil "~a ~a ~a" (lisp->isl lhs) (car expr) (lisp->isl rhs)))))
 
-;; TODO: Conditionが指定できるもの：
-;;   - and, or, Binary compare < <= > >=
-;;   - index comparison
-;;   - mod
 
 ;; Example
 ;;  This example includes all syntax used in the DSL

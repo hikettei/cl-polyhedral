@@ -7,7 +7,6 @@
     (kernel
      &key
        (verbose *verbose*)
-       (stream t)
        (threads nil))
   "Gains the optimized kernel obtained from transforming the given kernel using Polyhedral Model.
 Does the following:
@@ -18,11 +17,18 @@ Does the following:
   
   (with-isl-ctx ctx
     (let* ((initial-problem (Kernel->ISL kernel))
-	   (instruction     (cl-isl:isl-union-set-read-from-str ctx initial-problem)))
+	   (instructions    (cl-isl:isl-union-set-read-from-str ctx initial-problem)))
       (when verbose
-	(format stream "Initial Problem: ~a~%" initial-problem))
-      
-      (print instruction))))
+	(format t "Initial Problem: ~a~%" initial-problem)
+	(cl-isl:isl-union-set-dump instructions))
+
+      (multiple-value-bind (may-read may-write)
+	  (access-isl-rep kernel)
+
+	(print may-read)
+	(print may-write)
+
+	))))
 
 ;; Running example
 #+(or)
@@ -34,12 +40,12 @@ Does the following:
    (make-buffer :Z `(10 10) :FLOAT))
   `(for (i 10)
 	(for (j 0 1)
-	     (when (> j 0)
+	     (when (and (> j 0) (< i 10))
 	       (setf (aref :X i j) (aref :Y i j)))
-	     (setf (aref :X i) 0)))
+	     (setf (aref :X i) (aref :X i j))))
   `(for (i 0 10 1)
 	(for (j 0 10 1)
-	     (setf (aref :X i j) (+ (aref :Y i j) (aref :Z i j))))))
+	     (setf (aref :X i j) (add (aref :Y i j) (aref :Z i j))))))
  :verbose t)
 
 ;; Gemm

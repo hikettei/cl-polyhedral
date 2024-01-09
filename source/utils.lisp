@@ -1,6 +1,22 @@
 
 (cl:in-package :cl-polyhedral)
 
+(defun map-split (split-with function &rest sequences)
+  "A helper function merging A B C -> A, B, C"
+  (apply
+   #'concatenate
+   'string
+   (butlast
+    (alexandria:flatten
+     (apply
+      #'map
+      'list
+      #'(lambda (&rest args)
+	  (list
+	   (apply function args)
+	   split-with))
+      sequences)))))
+
 (declaim (inline unique-identifier))
 (defun unique-identifier ()
   (string-downcase (gensym "id")))
@@ -57,11 +73,8 @@ e.g.: 0 <= i <= n and 0 <= j <= n"
 		(incf count)
 		(flet ((instcond ()
 			 (if (inst-conds inst)
-			     (progn
-			       (warn "Conditions aren's supported yet.")
-			       ;; TODO Parse conds here
-			       (format nil " and ~a" nil))
-			     "")))
+			     (format nil " and ~a " (map-split " and " #'lisp->isl (inst-conds inst)))
+			     " ")))
 		  (if (= 1 (domain-by domain))
 		      (format out "~a <= ~a <= ~a~a"
 			      (domain-from domain)
@@ -107,3 +120,59 @@ e.g.: 0 <= i <= n and 0 <= j <= n"
       (format out ":"))
     (format out "}")))
 
+(defun expr-accesses (list-buffer)
+  (declare (type list list-buffer))
+  (loop for expr in list-buffer
+	if (eql (car expr) 'aref)
+	  collect (format nil "~a[~a] " (second expr) (map-split ", " #'lisp->isl (third expr)))))
+
+(declaim (ftype (function (Kernel) (values String String)) access-isl-rep))
+(defun access-isl-rep (kernel)
+  "construct the access relations map in ISL syntax form.
+Return: (values may-read may-write)"
+  (declare (type kernel kernel)
+	   (optimize (speed 3)))
+  (let ((params (get-params-str kernel))
+	(reads  (make-string-output-stream))
+	(writes (make-string-output-stream))
+	(wcount 1)
+	(rcount 1))
+    (declare (type fixnum wcount rcount))
+    
+    (format reads  "~a -> {" params)
+    (format writes "~a -> {" params)
+    
+    (loop for inst across (kernel-instructions kernel)
+	  for ds      = (get-related-domains inst kernel)
+	  for tgts    = (expr-accesses (list (inst-target inst)))
+	  for sources = (expr-accesses (coerce (inst-sources inst) 'list))
+	  for body    = (inst-body inst) do
+	    (assert (symbolp (car body)) () "Assertion Failed: car is missed from body: ~a" body)
+	    (when (not (eql 'setf (car body)))
+	      (if sources
+		  ;; Also reads from LHS
+		  (setf sources `(,@sources ,@tgts))
+		  (setf sources `(,@tgts))))
+
+	    (macrolet ((write-helper (counter target-to io-list &aux (ref (gensym)))
+			 `(dolist (,ref ,io-list)
+			    (unless (= 1 ,counter)
+			      (format ,target-to "; "))
+			    (incf ,counter)
+			    (format
+			     ,target-to
+			     "~a~a -> ~a"
+			     (inst-op inst)
+			     ds
+			     ,ref)
+			    (let ((conds (get-instructions-domains (list inst) kernel)))
+			      (unless (string= "" conds)
+				(format ,target-to " : ~a" conds))))))
+	      (write-helper wcount writes tgts)
+	      (write-helper rcount reads sources)))
+    (format reads  "}")
+    (format writes "}")
+    (values
+     (get-output-stream-string reads)
+     (get-output-stream-string writes))))
+     
