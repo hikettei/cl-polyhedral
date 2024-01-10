@@ -1,89 +1,195 @@
 
 (cl:in-package :cl-polyhedral)
 
-(defparameter *verbose* nil "")
+(defparameter *verbose* 0 "
+Indicates the level of logging. 0 or 1 or 2
+
+0 -> Ignores all warnings
+1 -> Puts warnings
+2 -> Displays all progresses")
 
 (defun run-polyhedral
     (kernel
      &key
-       (verbose *verbose*)
-       (threads nil))
+       (verbose *verbose*))
   "Gains the optimized kernel obtained from transforming the given kernel using Polyhedral Model.
 Does the following:
 - 1. Creates a context and space for ISL
 - 
 "
-  (declare (type Kernel kernel))
-  
-  (with-isl-ctx ctx
-    (let* ((initial-problem (Kernel->ISL kernel))
-	   (instructions    (isl-union-set-read-from-str ctx initial-problem)))
-      (declare (type isl-union-set instructions))
-      
-      (when verbose
-	(format t "Initial Problem: ~a~%" initial-problem)
-	(foreign-funcall
-	 "isl_union_set_dump"
-	 :pointer (isl-union-set-ptr instructions)
-	 :void))
+  (declare (type Kernel kernel)
+	   (type (integer 0 2) verbose))
 
-      (multiple-value-bind (may-read may-write)
-	  (access-isl-rep kernel)
-	(multiple-value-bind
-	      (may-read may-write)
-	    (values
-	     (isl-union-map-read-from-str ctx may-read)
-	     (isl-union-map-read-from-str ctx may-write))
-	  (let ((schedule
-		  (schedule-tree-isl-rep
-		   ctx
-		   (aref (kernel-domains kernel) 0)
-		   kernel)))
-	    ;; Constructs the original schedule
-	    (when verbose
-	      ;; Displaying Original The C Code	      
-	      (print initial-problem)
-	      (print may-read)
-	      (print may-write)
-	      (print schedule)
-	      (let* ((space (isl-set-read-from-str ctx "{:}"))
-		     (build (isl-ast-build-from-context space))
-		     (ast   (isl-ast-build-node-from-schedule build (isl-schedule-copy schedule)))
-		     (c     (isl-ast-node-get-ctx ast))
-		     (p     (isl-printer-to-str c))
-		     (p     (isl-printer-set-output-format p 4)) ;;4=Clang
-		     (q     (isl-printer-print-ast-node p ast))
-		     (str   (isl-printer-get-str q)))
-		(print str)))))))))
+  (macrolet ((with-verbose-level ((number) &body body) `(when (>= verbose ,number) ,@body)))
+    (with-isl-ctx ctx
+      
+      (foreign-funcall
+       "isl_options_set_on_error"
+       :pointer (isl-ctx-ptr ctx)
+       :int (if (= verbose 0) 0 1)
+       :void)
+      
+      (let* ((initial-problem (Kernel->ISL kernel))
+	     (instructions    (isl-union-set-read-from-str ctx initial-problem)))
+	(declare (type isl-union-set instructions))
+
+	(multiple-value-bind (may-read must-write)
+	    (access-isl-rep kernel)
+	  
+	  (with-verbose-level (2)
+	    (format t "~%Original Read/Write Dependencies(verbose=2):~%may_read:~%~a~%must_write:~%~a~%"
+		    may-read
+		    must-write))
+	  
+	  (multiple-value-bind
+		(may-read must-write)
+	      (values
+	       (isl-union-map-read-from-str ctx may-read)
+	       (isl-union-map-read-from-str ctx must-write))
+	    
+	    (let ((schedule
+		    (schedule-tree-isl-rep
+		     ctx
+		     (aref (kernel-domains kernel) 0)
+		     kernel)))
+	      
+	      (with-verbose-level (2)
+		;; Displaying the initial schedules
+		(format t "~%Original Scheduling(verbose=2):a~%")
+		(foreign-funcall
+		 "isl_schedule_dump"
+		 :pointer schedule
+		 :void))
+		
+	      
+	      (with-verbose-level (2)
+		;; Displaying The Original C Code
+		(let* ((space (isl-set-read-from-str ctx "{:}"))
+		       (build (isl-ast-build-from-context space))
+		       (ast   (isl-ast-build-node-from-schedule build (isl-schedule-copy schedule)))
+		       (c     (isl-ast-node-get-ctx ast))
+		       (p     (isl-printer-to-str c))
+		       (p     (isl-printer-set-output-format p 4)) ;; 4 indicates C
+		       (q     (isl-printer-print-ast-node p ast))
+		       (str   (isl-printer-get-str q)))
+		  (format t "~%Original C Code(verbose=2):~%~a~%" str)))
+
+	      ;; Dependency Analysis
+	      
+	      
+	      (let* (;; 1. RAW (Read After Write), a=1 then b=a
+		     (access
+		       (%isl-union-access-info-from-sink
+			(isl-union-set-ptr (isl-union-map-copy may-read))))		     
+		     (access
+		       (%isl-union-access-info-set-must-source
+			access
+			(isl-union-set-ptr (isl-union-map-copy must-write))))
+		     (access
+		       (%isl-union-access-info-set-schedule
+			access
+			(isl-schedule-copy schedule)))
+		     (flow
+		       (%isl-union-access-info-compute-flow
+			access))
+		     (raw-deps
+		       (%isl-union-flow-get-must-dependence
+			flow))
+		     
+		     ;; 2. WAR (Write After Read) deps
+		     (access
+		       (%isl-union-access-info-from-sink
+			(isl-union-set-ptr (isl-union-map-copy must-write))))
+		     (access
+		       (%isl-union-access-info-set-must-source
+			access
+			(isl-union-set-ptr must-write)))
+		     (access
+		       (%isl-union-access-info-set-may-source
+			access
+			(isl-union-set-ptr may-read)))
+		     (access
+		       (%isl-union-access-info-set-schedule
+			access
+			schedule))
+		     (flow
+		       (%isl-union-access-info-compute-flow
+			access))
+		     (waw-deps
+		       (%isl-union-flow-get-must-dependence
+			flow))
+		     (war-deps
+		       (%isl-union-flow-get-may-dependence
+			flow)))
+		
+		(with-verbose-level (2)
+		  (format t "~%RAW Dependencies:~%")
+		  (%isl-union-map-dump raw-deps)
+		  (format t "~%WAW Dependencies:~%")
+		  (%isl-union-map-dump waw-deps)
+		  (format t "~%WAR Dependencies:~%")
+		  (%isl-union-map-dump war-deps))
+
+		(macrolet ((set-option (name level)
+			     `(foreign-funcall ,name
+					       :pointer (isl-ctx-ptr ctx)
+					       :int ,level
+					       :void)))
+		  (set-option "isl_options_set_schedule_maximize_band_depth" 1)
+		  (set-option "isl_options_set_schedule_whole_component" 1)
+		  (set-option "isl_options_set_schedule_treat_coalescing" 1)
+		  (set-option "isl_options_set_tile_scale_tile_loops" 1)
+		  )
+		))))))))
 
 ;; Running example
-#+(or)
+;; TODO: OpFusion Scheduling...
+#+(and)
 (run-polyhedral
  (make-kernel-from-dsl
   (list
    (make-buffer :X `(10 10) :FLOAT)
    (make-buffer :Y `(10 10) :FLOAT)
    (make-buffer :Z `(10 10) :FLOAT))
-  `(for (i 10)
-	(for (j 0 1)
-	     (when (and (> j 0) (< i 10))
-	       (setf (aref :X i j) (aref :Y i j)))
-	     (setf (aref :X i) (aref :X i j))))
-  `(for (i 0 10 1)
-	(for (j 0 10 1)
-	     (setf (aref :X i j) (add (aref :Y i j) (aref :Z i j))))))
- :verbose t)
+  `(for (i 0 10)
+	(for (j 0 10)
+	     (setf (aref :X i j) (sin (aref :Y i j)))
+	     (setf (aref :Z i j) (cos (aref :Y i j)))))
+  `(for (i 0 10)
+	(for (j 0 10)
+	     (setf (aref :Z i j) (logn (aref :Y i j))))))
+ :verbose 2)
 
 ;; Gemm
-#+(or)
-(run-polyhedral
- (make-kernel-from-dsl
-  (list
-   (make-buffer :X `(10 10) :FLOAT)
-   (make-buffer :Y `(10 10) :FLOAT)
-   (make-buffer :Z `(10 10) :FLOAT))
-  `(for (i 10)
-	(for (j 0 10)
-	     (for (k 0 10)
-		  (setf (aref :Z i k) (mulf (aref :X i j) (aref :Y j k) (aref :Z i k)))))))
- :verbose t)
+#+(and)
+(time
+ (run-polyhedral
+  (make-kernel-from-dsl
+   (list
+    (make-buffer :X `(10 10) :FLOAT)
+    (make-buffer :Y `(10 10) :FLOAT)
+    (make-buffer :Z `(10 10) :FLOAT))
+   `(for (i 10)
+	 (for (j 0 10)
+	      
+	      (for (k 0 10)
+		   (setf (aref :Z i k) (mulf (aref :X i j) (aref :Y j k) (aref :Z i k)))))))
+  :verbose 2))
+
+;; Gemm (Z=0)
+#+(and)
+(time
+ (run-polyhedral
+  (make-kernel-from-dsl
+   (list
+    (make-buffer :X `(10 10) :FLOAT)
+    (make-buffer :Y `(10 10) :FLOAT)
+    (make-buffer :Z `(10 10) :FLOAT))
+   `(for (i 10)
+	 (for (j 0 10)
+	      (for (k 0 10)
+		   (setf (aref :Z i k) 0.0))
+	      (for (k 0 10)
+		   (setf (aref :Z i k) (mulf (aref :X i j) (aref :Y j k) (aref :Z i k)))))))
+  :verbose 2))
+

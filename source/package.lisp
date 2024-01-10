@@ -7,8 +7,7 @@
    :cffi
    :mgl-pax)
   (:export
-   ;; Graph Representation
-   #:Instruction
+   #:make-kernel-from-dsl
 
    ))
 
@@ -27,7 +26,7 @@
 				  #P"usr/"
 				  (user-homedir-pathname)))
 		 (cffi:load-foreign-library-error (c)
-		   (warn "cl-polyhedral could not find libisl the shared library. Ensure that the ISL was installed.")
+		   (warn "cl-polyhedral could not find libisl the shared library.~% (Recommended) Ensure that the ISL was installed and CFFI is able to find out libisl.dylib:~% - sudo apt install libisl-dev~% - brew install libisl")
 		   (error c)))
 	     (retry-load-foreign-library ()
 	       :report "Try doing cffi:load-foreign-library again."
@@ -48,7 +47,7 @@
 			 " && make -j 4 && make install"))
 		      (info
 			(progn
-			  (warn "cl-polyhedral: Building ISL from the source with:~%    ~a" cmd)
+			  (warn "cl-polyhedral: Building ISL from the source with:~%    ~a~%Ensure that all dependencies for ISL are installed." cmd)
 			  (uiop:launch-program
 			   cmd
 			   :error-output :stream)))
@@ -56,8 +55,7 @@
 			(uiop:process-info-error-output info)))
 		 (unless (zerop (uiop:wait-process info))
 		   (error
-		    "cl-polyhedral: Building from source was failed due to:~%~a"
+		    "cl-polyhedral: Building from source was failed due to:~%~a~%Ensure that all dependencies for ISL are installed on your device.~% Or consider installing libisl manually."
 		    (alexandria:read-stream-content-into-string error-output)))
 		 (load-helper))))))
   (load-helper))
-

@@ -6,8 +6,6 @@
 ;; (Which complements the lack of functions in the cl-isl binding)
 ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-(declaim (inline))
-
 ;; ~ ISL-CTX ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 (defstruct isl-ctx ptr)
 (defcfun ("isl_ctx_alloc" %isl-ctx-alloc) :pointer)
@@ -54,6 +52,11 @@
   (make-isl-union-set
    :ptr
    (%isl-union-set-read-from-str (isl-ctx-ptr ctx) str)))
+
+(defcfun ("isl_union_map_dump"
+	  %isl-union-map-dump)
+    :void
+  (union-map :pointer))
   
 (defcfun ("isl_union_map_read_from_str"
 	  %isl-union-map-read-from-str)
@@ -70,6 +73,47 @@
     (isl-ctx-ptr ctx)
     str)))
 
+(defcfun ("isl_union_map_copy"
+	  %isl-union-map-copy)
+    :pointer
+  (map :pointer))
+
+(defun isl-union-map-copy (set)
+  (make-isl-union-set :ptr (%isl-union-map-copy (isl-union-set-ptr set))))
+
+(defcfun ("isl_union_access_info_from_sink"
+	  %isl-union-access-info-from-sink)
+    :pointer
+  (map :pointer))
+
+(defun isl-union-access-info-from-sink (set)
+  (%isl-union-access-info-from-sink (isl-union-set-ptr set)))
+
+(defcfun ("isl_union_access_info_set_must_source"
+	  %isl-union-access-info-set-must-source)
+    :pointer
+  (access :pointer)
+  (map :pointer))
+
+
+(defcfun ("isl_union_access_info_set_schedule"
+	  %isl-union-access-info-set-schedule)
+    :pointer
+  (access :pointer)
+  (map :pointer))
+
+(defcfun ("isl_union_access_info_compute_flow"
+	  %isl-union-access-info-compute-flow)
+    :pointer
+  (access :pointer))
+
+(defcfun ("isl_union_flow_get_must_dependence"
+	  %isl-union-flow-get-must-dependence)
+    :pointer
+  (access :pointer))
+
+;; ~~ Schedules ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 (defcfun ("isl_schedule_from_domain"
 	  %isl-schedule-from-domain)
     :pointer
@@ -85,6 +129,20 @@
     :pointer
   (x :pointer)
   (y :pointer))
+
+(defcfun "isl_schedule_copy" :pointer
+  (schedule :pointer))
+
+(defcfun ("isl_union_access_info_set_may_source"
+	  %isl-union-access-info-set-may-source)
+    :pointer
+  (access   :pointer)
+  (may-read :pointer))
+
+(defcfun ("isl_union_flow_get_may_dependence"
+	  %isl-union-flow-get-may-dependence)
+    :pointer
+  (flow :pointer))
 
 (defun isl-schedule-sequence (x y)
   (%isl-schedule-sequence x y))
@@ -128,9 +186,6 @@
   (x :pointer)
   (y :pointer))
 
-(defcfun "isl_schedule_copy" :pointer
-  (schedule :pointer))
-
 (defcfun "isl_ast_node_get_ctx" :pointer
   (ast :pointer))
 
@@ -147,4 +202,3 @@
 
 (defcfun "isl_printer_get_str" :string
   (ast :pointer))
-

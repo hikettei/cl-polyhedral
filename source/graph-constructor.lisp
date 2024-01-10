@@ -260,23 +260,23 @@ TODO
   (declare (optimize (speed 3)))
   (trivia:ematch expr
     ((or (type symbol) (type number))
-     (format nil "~a" expr))
+     (format nil "~(~a~)" expr))
     ((list '- x)
-     (format nil "-~a" x))
+     (format nil "-~(~a~)" x))
     ((list* (or '+ '- '* '/) _)
      (let ((op   (car expr))
 	   (args (map 'list #'lisp->isl (cdr expr))))
        (flet ((helper (x y)
-		(format nil "~a~(~a~)~a" x op y)))
+		(format nil "~(~a~)~(~a~)~(~a~)" x op y)))
 	 (reduce #'helper args))))
     ((list* (or 'or 'and) _)
      (let ((op   (car expr))
 	   (args (map 'list #'lisp->isl (cdr expr))))
        (flet ((helper (x y)
-		(format nil "~a ~(~a~) ~a" x op y)))
+		(format nil "~(~a~) ~(~a~) ~(~a~)" x op y)))
 	 (reduce #'helper args))))
     ((list (or '> '>= '< '<=) lhs rhs)
-     (format nil "~a ~a ~a" (lisp->isl lhs) (car expr) (lisp->isl rhs)))))
+     (format nil "~(~a~) ~a ~(~a~)" (lisp->isl lhs) (car expr) (lisp->isl rhs)))))
 
 
 ;; Example

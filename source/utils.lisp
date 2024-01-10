@@ -21,7 +21,7 @@
 (defun unique-identifier ()
   (string-downcase (gensym "id")))
 
-(declaim (ftype (function (Kernel) string) get-params-str))
+(declaim (ftype (function (Kernel) String) get-params-str))
 (defun get-params-str (kernel)
   "Returns a string representing a list of constants in the kernel
 e.g.: [A, B, C]"
@@ -53,7 +53,7 @@ e.g.: [A, B, C]"
 		    (when (not (= count 1))
 		      (format out ", "))
 		    (incf count)
-		    (format out "~a" iname)))
+		    (format out "~(~a~)" iname)))
     (format out "]")))
 
 (declaim (ftype (function (List Kernel) string) get-instructions-domains))
@@ -76,13 +76,13 @@ e.g.: 0 <= i <= n and 0 <= j <= n"
 			     (format nil " and ~a " (map-split " and " #'lisp->isl (inst-conds inst)))
 			     " ")))
 		  (if (= 1 (domain-by domain))
-		      (format out "~a <= ~a <= ~a~a"
+		      (format out "~a <= ~(~a~) <= ~a~a"
 			      (domain-from domain)
 			      (domain-subscript domain)
 			      (domain-to domain)
 			      (instcond))
 		      (let ((ident (unique-identifier)))
-			(format out "exists ~a: ~a = ~a~a + ~a and ~a <= ~a <= ~a~a"
+			(format out "exists ~a: ~(~a~) = ~(~a~)~(~a~) + ~(~a~) and ~(~a~) <= ~(~a~) <= ~(~a~)~a"
 				ident
 				(domain-subscript domain)
 				(domain-by domain)
@@ -123,7 +123,7 @@ e.g.: 0 <= i <= n and 0 <= j <= n"
 (defun expr-accesses (list-buffer)
   (declare (type list list-buffer))
   (loop for expr in list-buffer
-	if (eql (car expr) 'aref)
+	if (and (listp expr) (eql (car expr) 'aref))
 	  collect (format nil "~a[~a] " (second expr) (map-split ", " #'lisp->isl (third expr)))))
 
 (declaim (ftype (function (Kernel) (values String String)) access-isl-rep))
@@ -248,5 +248,4 @@ Return: (values may-read may-write)"
 		(incf dcount)
 		(format out "{~a}" set))))
     (princ "]" out)))
-
 

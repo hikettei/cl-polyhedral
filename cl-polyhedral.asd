@@ -1,9 +1,8 @@
-
 (asdf:defsystem :cl-polyhedral
   :description "Abstract Polyhedral Compiler for Common Lisp"
   :author      "hikettei <ichndm@gmail.com>"
   :licence     "MIT"
-  :depends-on (#:mgl-pax #:cffi #:alexandria #:trivia #:cffi-libffi)
+  :depends-on (#:mgl-pax #:cffi #:cffi-libffi #:alexandria #:trivia)
   :components
   ((:file "source/package")
    (:file "source/graph")
