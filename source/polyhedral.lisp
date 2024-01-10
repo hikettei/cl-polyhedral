@@ -232,8 +232,8 @@ Does the following:
 	(for (j 0 10)
 	     (setf (aref :X i j) (sin (aref :Y i j)))
 	     (setf (aref :Z i j) (cos (aref :Y i j)))))
-  `(for (i 0 10)
-	(for (j 0 10)
+  `(for (j 0 10)
+	(for (i 0 10)
 	     (setf (aref :Z i j) (logn (aref :Y i j))))))
  :verbose 3)
 
@@ -243,12 +243,12 @@ Does the following:
  (run-polyhedral
   (make-kernel-from-dsl
    (list
-    (make-buffer :X `(10 10) :FLOAT)
-    (make-buffer :Y `(10 10) :FLOAT)
-    (make-buffer :Z `(10 10) :FLOAT))
+    (make-buffer :X `(10 20) :FLOAT)
+    (make-buffer :Y `(20 30) :FLOAT)
+    (make-buffer :Z `(10 30) :FLOAT))
    `(for (i 10)
-	 (for (j 0 10)
-	      (for (k 0 10)
+	 (for (j 0 20)
+	      (for (k 0 30)
 		   (setf (aref :Z i k) (mulf (aref :X i j) (aref :Y j k) (aref :Z i k)))))))
   :verbose 3))
 
@@ -267,7 +267,24 @@ Does the following:
 		   (setf (aref :Z i k) 0.0))
 	      (for (k 0 10)
 		   (setf (aref :Z i k) (mulf (aref :X i j) (aref :Y j k) (aref :Z i k)))))))
-  :verbose 2))
+  :verbose 3))
+
+;; Permute
+#+(and)
+(time
+ (run-polyhedral
+  (make-kernel-from-dsl
+   (list
+    (make-buffer :X `(10 20 30 40 50 60) :FLOAT)
+    (make-buffer :Y `(10 20 30 40 50 60) :FLOAT))
+   `(for (a 10)
+	 (for (b 0 20)
+	      (for (c 0 30)
+		   (for (d 0 40)
+			(for (e 0 50)
+			     (for (f 0 60)
+				  (setf (aref :X a b d c e f) (aref :Y f e a d b c)))))))))      
+  :verbose 3))
 
 ;; Conv
 
