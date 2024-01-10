@@ -14,6 +14,7 @@ Indicates the level of logging. 0 or 1 or 2
 (defun run-polyhedral
     (kernel
      &key
+       (tile 0)
        (verbose *verbose*))
   "Gains the optimized kernel obtained from transforming the given kernel using Polyhedral Model.
 Does the following:
@@ -21,8 +22,7 @@ Does the following:
 - 
 "
   (declare (type Kernel kernel)
-	   (type (integer 0 3) verbose)
-	   (optimize (speed 3)))
+	   (type (integer 0 3) verbose))
 
   (macrolet ((with-verbose-level ((number) &body body) `(when (>= verbose ,number) ,@body)))
     (with-isl-ctx ctx
@@ -78,9 +78,7 @@ Does the following:
 		       (str   (isl-printer-get-str q)))
 		  (format t "~%Original C Code(verbose=2):~%~a~%" str)))
 
-	      ;; Dependency Analysis
-	      
-	      
+	      ;; Dependency Analysis	      
 	      (let* (;; 1. RAW (Read After Write), a=1 then b=a
 		     (access
 		       (%isl-union-access-info-from-sink
@@ -187,7 +185,7 @@ Does the following:
 			     (get-best-nesting-orders kernel (= verbose 3))))
 		      (with-verbose-level (3)
 			(format t "~% New Loop Orders:~%~a~%" loop-orders))
-		      (apply-reorder-schedule-loops! kernel schedule ctx loop-orders)		      
+		      (apply-reorder-schedule-loops! schedule ctx loop-orders)		      
 		      (with-verbose-level (3)
 			(format t "~% New Reorderd Schedules:~%")
 			(foreign-funcall
@@ -195,7 +193,32 @@ Does the following:
 			 :pointer schedule
 			 :void))
 
-		      )))))))))))
+		      (when (not (= tile 0))
+			(setf schedule (tile-schedule kernel schedule ctx tile)))
+
+		      (with-verbose-level (3)
+			(format t "~% New Schedule After Tiling:~%")
+			(foreign-funcall
+			 "isl_schedule_dump"
+			 :pointer schedule
+			 :void))
+
+		      ;; Constructs AST From Scheduled Nodes
+
+		      (let* ((space (isl-set-read-from-str ctx "{:}"))
+			     (build (isl-ast-build-from-context space))
+			     (ast   (isl-ast-build-node-from-schedule build schedule)))
+			(with-verbose-level (2)
+			  (let* ((c (isl-ast-node-get-ctx ast))
+				 (p (isl-printer-to-str c))
+				 (p (isl-printer-set-output-format p 4))
+				 (q (isl-printer-print-ast-node p ast))
+				 (s (isl-printer-get-str q)))
+			    
+			    (format t "~% Final C Code: ~%~a~%" s)))
+
+
+			))))))))))))
 
 ;; Running example
 ;; TODO: OpFusion Scheduling...
@@ -226,7 +249,6 @@ Does the following:
     (make-buffer :Z `(10 10) :FLOAT))
    `(for (i 10)
 	 (for (j 0 10)
-	      
 	      (for (k 0 10)
 		   (setf (aref :Z i k) (mulf (aref :X i j) (aref :Y j k) (aref :Z i k)))))))
   :verbose 3))
@@ -248,3 +270,4 @@ Does the following:
 		   (setf (aref :Z i k) (mulf (aref :X i j) (aref :Y j k) (aref :Z i k)))))))
   :verbose 3))
 
+;; Conv

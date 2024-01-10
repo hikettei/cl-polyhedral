@@ -17,3 +17,7 @@
     (T
      0)))
 
+
+(defun tile-schedule (kernel schedule ctx tile)
+  (warn "schedule ... TODO")
+  schedule)

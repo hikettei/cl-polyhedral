@@ -98,9 +98,9 @@
 	      (when (= count 1)
 		(let ((order (get-best-nesting-order-on-domains domain stride-order kernel)))
 		  (declare (type list order))		  
-		  (setf seen (if seen (append seen order) order)
-			nesting-orders (if nesting-orders (append nesting-orders order) order))))))
-    nesting-orders))
+		  (setf seen (if seen (append seen order) order))
+		  (push order nesting-orders)))))
+    (reverse nesting-orders)))
 
 (declaim (ftype (function (Domain list list) boolean) can-insert-domain))
 (defun can-insert-domain (domain nesting-order consts)
@@ -233,13 +233,11 @@
 	  (%"isl_multi_union_pw_aff_set_union_pw_aff" :pointer sched :int count :pointer new-upa :void)
 	  (incf count))))))
 
-(defun apply-reorder-schedule-loops! (kernel schedule ctx loop-orders)
+(defun apply-reorder-schedule-loops! (schedule ctx loop-orders)
   (declare (type isl-ctx ctx)
-	   (type Kernel Kernel)
 	   (type list loop-orders)
 	   (optimize (speed 3)))
-  (let* (;;(tile-dims (get-tile-dim kernel))
-	 (root
+  (let* ((root
 	   (foreign-funcall "isl_schedule_get_root"
 			    :pointer schedule :pointer))
 	 (node root)
@@ -259,7 +257,7 @@
 	      (loop named band-loop
 		    for i fixnum upfrom 0 below (the fixnum (%isl-schedule-node-n-children node))
 		    for band = (isl-schedule-node-get-child node i)
-		    if (eql (print (isl-schedule-node-get-type band)) 0) ;; TODO: how to prove == band?
+		    if (eql (isl-schedule-node-get-type band) 0) ;; TODO: how to prove == band?
 		      do (reorder-band! band loop-orders ctx)
 			 (setf next-nodes (if next-nodes
 					      (append next-nodes (list (isl-schedule-node-get-child band 0)))
