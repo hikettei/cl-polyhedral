@@ -2,13 +2,14 @@
   :description "Abstract Polyhedral Compiler for Common Lisp"
   :author      "hikettei <ichndm@gmail.com>"
   :licence     "MIT"
-  :depends-on (#:mgl-pax #:cffi #:cffi-libffi #:alexandria #:trivia)
+  :depends-on (#:mgl-pax #:cffi #:cffi-libffi #:alexandria #:trivia #:cl-ppcre)
   :components
   ((:file "source/package")
    (:file "source/graph")
    (:file "source/graph-constructor")
    (:file "source/isl")
    (:file "source/utils")
+   (:file "source/tiling")
    (:file "source/memory-locality")
    (:file "source/polyhedral")
    (:file "source/codegen"))

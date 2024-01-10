@@ -187,6 +187,13 @@ Does the following:
 			     (get-best-nesting-orders kernel (= verbose 3))))
 		      (with-verbose-level (3)
 			(format t "~% New Loop Orders:~%~a~%" loop-orders))
+		      (apply-reorder-schedule-loops! kernel schedule ctx loop-orders)
+		      (with-verbose-level (3)
+			(format t "~% New Reorderd Schedules:~%")
+			(foreign-funcall
+			 "isl_schedule_dump"
+			 :pointer schedule
+			 :void))
 		    )))))))))))
 
 ;; Running example

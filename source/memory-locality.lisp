@@ -188,3 +188,88 @@
       (setf nesting-order (if nesting-order (append nesting-order (list (domain-subscript parent))) (list (domain-subscript parent)))))
     nesting-order))
 
+(defun reorder-band! (band loop-orders ctx)
+  (declare (type list loop-orders)
+	   (type isl-ctx ctx))
+  (macrolet ((% (&rest args) `(foreign-funcall ,@args)))
+    (let* ((sched
+	     (%"isl_schedule_node_band_get_partial_schedule" :pointer band :pointer))
+	   (sched-str
+	     (%"isl_multi_union_pw_aff_to_str" :pointer sched :string))
+	   (sched-copy
+	     (%"isl_multi_union_pw_aff_read_from_str" :pointer (isl-ctx-ptr ctx) :string sched-str :pointer))
+	   (n
+	     (%"isl_multi_union_pw_aff_dim"
+	       :pointer sched-copy
+	       isl-dim-type (foreign-enum-keyword 'isl-dim-type 3)
+	       :int))
+	   (count 0)
+	   (upas (loop for i upfrom 0 below n
+		       collect
+		       (cons nil (%"isl_multi_union_pw_aff_get_union_pw_aff" :string sched-copy :int i :pointer))))
+	   (upa-str (%"isl_union_pw_aff_to_str" :pointer (cdr (car upas)) :string))
+	   (new-upa (%"isl_union_pw_aff_read_from_str" :pointer (isl-ctx-ptr ctx) :string upa-str :pointer)))
+      (%"isl_multi_union_pw_aff_set_union_pw_aff" :pointer sched :int 0 :pointer new-upa :void)
+
+      (loop named top-loop for ordering in loop-orders do
+	(loop for iname in ordering do
+	  (loop for i upfrom 0
+		for (used . upa) in upas do
+		  (when used (return-from top-loop))
+		  (let* ((upa-str (%"isl_union_pw_aff_to_str" :pointer upa :string))
+			 (upa-iname-str (car (last (cl-ppcre:split "->" upa-str))))
+			 (upa-iname-str (car (cl-ppcre:split ":" upa-iname-str))))
+		    (when (cl-ppcre:scan (format nil "~(~a~)" iname) upa-iname-str)
+		      (let ((new-upa (%"isl_union_pw_aff_read_from_str" :pointer (isl-ctx-ptr ctx) :string upa-str :pointer)))
+			(%"isl_multi_union_pw_aff_set_union_pw_aff" :pointer sched :int count :pointer new-upa :void)
+			(incf count)
+			(setf (nth i upas) (cons t upa))))))))
+
+      (loop for (used . upa) in upas do
+	(when used
+	  (return-from reorder-band!))
+	(let* ((upa-str (%"isl_union_pw_aff_to_str" :pointer upa :string))
+	       (new-upa (%"isl_union_pw_aff_read_from_str" :pointer (isl-ctx-ptr ctx) :pointer upa-str :pointer)))
+	  (%"isl_multi_union_pw_aff_set_union_pw_aff" :pointer sched :int count :pointer new-upa :void)
+	  (incf count))))))
+
+(defun apply-reorder-schedule-loops! (kernel schedule ctx loop-orders)
+  (declare (type isl-ctx ctx)
+	   (type Kernel Kernel)
+	   (type list loop-orders)
+	   (optimize (speed 3)))
+  (let* (;;(tile-dims (get-tile-dim kernel))
+	 (root
+	   (foreign-funcall "isl_schedule_get_root"
+			    :pointer schedule :pointer))
+	 (node root)
+	 (next-nodes nil))
+    
+    (flet ((isl-schedule-node-get-child (schedule i)
+	     (foreign-funcall "isl_schedule_node_get_child"
+			      :pointer schedule
+			      :int i
+			      :pointer))
+	   (isl-schedule-node-get-type (obj)
+	     (foreign-funcall "isl_schedule_node_get_type"
+			      :pointer obj
+			      isl-schedule-node-type)))
+      (loop named find-node
+	    while (> (the fixnum (%isl-schedule-node-n-children node)) 0) do
+	      (loop named band-loop
+		    for i fixnum upfrom 0 below (the fixnum (%isl-schedule-node-n-children node))
+		    for band = (isl-schedule-node-get-child schedule i)
+		    if (eql (print (isl-schedule-node-get-type band)) :a) ;; TODO: how to prove == band?
+		      do (reorder-band! band loop-orders ctx)
+			 (setf next-nodes (if next-nodes
+					      (append next-nodes (list (isl-schedule-node-get-child band 0)))
+					      (list (isl-schedule-node-get-child band 0))))
+			 (return-from band-loop)
+		    else
+		      do (setf next-nodes (if next-nodes (append next-nodes (list band)) (list band))))
+
+	      (when (= (length next-nodes) 0)
+		(return-from find-node))
+	      (setf next-nodes (butlast next-nodes)))))
+  nil)
+
