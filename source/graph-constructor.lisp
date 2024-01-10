@@ -59,7 +59,14 @@ TODO
   (labels ((to-array (type x)
 	     (make-array `(,(length x)) :initial-contents x :element-type type))
 	   (expr-depends-on (expr)
-	     ;; Expr -> (values expr symbols-depending-on)
+	     ;; Extracts Expr -> (values expr symbols-depending-on)
+	     ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	     ;;  Expr is defined as:
+	     ;;   Var  := Symbol || Number
+	     ;;   Form := Var Var Var || nil
+	     ;;   Expr := Form || Expr
+	     ;; e.g.: (and (> a 1) (= b 1))
+	     ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	     (trivia:ematch expr
 	       ((list* 'aref (type Variable-T)  _)
 		(let ((depends))
@@ -101,6 +108,9 @@ TODO
 	       ;; defined as:
 	       ;; (for (bind from &optional to by)
 	       ;;      &body body)
+	       ;; here, bind is a symbol.
+	       ;; from, to by are a single Expr
+	       ;; body is a body (A sequence of Instructon)
 	       ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	       ((list* 'for
 		       (range-pattern bind from to by)
@@ -122,8 +132,16 @@ TODO
 					 (remove-duplicates
 					  (let ((tmp (inst-depends-on result))) ;; <-> (append tmp (list bind)), rebundant lines are for optimizing
 					    (if tmp
-					      (append tmp (list bind))
-					      (list bind)))))
+						(append tmp (list bind))
+						(list bind)))))
+				   result)
+			       if (domain-p result)
+				 ;; Nested Loop
+				 collect
+				 (progn
+				   (loop for d in (if parent-doms `(,@parent-doms ,domain-tmp) (list domain-tmp)) do
+				     (push (domain-subscript d) (domain-depends-on result)))
+				   (setf (domain-depends-on result) (remove-duplicates (domain-depends-on result)))					 
 				   result)
 				 ;; If the result is nested; flatten and list up instructions.
 			       if (listp result)
@@ -139,12 +157,13 @@ TODO
 								(list bind)))))
 						   (push x instructions)
 						   x)))))
-		  (setf (domain-instructions domain-tmp) (to-array 'Instruction domain-instructions))
+		  (setf (domain-instructions domain-tmp) (to-array '(or Domain Instruction) domain-instructions))
 		  (push
 		   domain-tmp
-		   domains)))
+		   domains)
+		  domain-tmp))
 	       ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	       ;; When, the body is conditioned under condition
+	       ;; When, the body is conditioned under the condition
 	       ;; (when condition &body body)
 	       ;; Condition is constrained by:
 	       ;;  - Using aref inside `condition` is prohibited
@@ -168,8 +187,9 @@ TODO
 		 (cddr expr)))
 	       ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	       ;;  Instruction (Data Movements)
-	       ;; A Syntax sugar for (setf (aref :X i j) (:MOVE (aref :X i j) (aref :Y i j)))
-	       ;;  or (setf (aref :X i j) 0)
+	       ;; A Syntax sugar for:
+	       ;;    - (setf (aref :X i j) (:MOVE (aref :X i j) (aref :Y i j)))
+	       ;;    - (setf (aref :X i j) 0)
 	       ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	       ((list
 		 'setf
@@ -277,3 +297,15 @@ TODO
 	(for (j 0 10 1)
 	     (setf (aref :X i j) (+ (aref :Y i j) (aref :Z i j)))))))
 
+;; Example
+#+(or)
+(print
+ (make-kernel-from-dsl
+  (list
+   (make-buffer :X `(10 10) :FLOAT)
+   (make-buffer :Y `(10 10) :FLOAT)
+   (make-buffer :Z `(10 10) :FLOAT))
+  `(for (i 10)
+	(for (j 0 10)
+	     (for (k 0 10)
+		  (setf (aref :Z i k) (mulf (aref :X i j) (aref :Y j k) (aref :Z i k))))))))
