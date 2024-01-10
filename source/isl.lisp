@@ -69,3 +69,39 @@
   (%isl-schedule-insert-partial-schedule
    (cl-isl::isl-ctx-ptr ctx)
    schedule))
+
+(defcfun ("isl_ast_build_from_context"
+	  %isl-ast-build-from-context)
+    :pointer
+  (set :pointer))
+
+(defun isl-ast-build-from-context (set)
+  (declare (type cl-isl:isl-set set))
+  (%isl-ast-build-from-context
+   (cl-isl::isl-set-ptr set)))
+
+(defcfun "isl_ast_build_node_from_schedule"
+    :pointer
+  (x :pointer)
+  (y :pointer))
+
+(defcfun "isl_schedule_copy" :pointer
+  (schedule :pointer))
+
+(defcfun "isl_ast_node_get_ctx" :pointer
+  (ast :pointer))
+
+(defcfun "isl_printer_to_str" :pointer
+  (printer :pointer))
+
+(defcfun "isl_printer_set_output_format" :pointer
+  (printer :pointer)
+  (format :int))
+
+(defcfun "isl_printer_print_ast_node" :pointer
+  (p :pointer)
+  (ast :pointer))
+
+(defcfun "isl_printer_get_str" :string
+  (ast :pointer))
+

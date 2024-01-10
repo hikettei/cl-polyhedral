@@ -18,7 +18,7 @@ Does the following:
   (with-isl-ctx ctx
     (let* ((initial-problem (Kernel->ISL kernel))
 	   (instructions    (cl-isl:isl-union-set-read-from-str ctx initial-problem)))
-      ;;(print instructions)
+      
       (when verbose
 	(format t "Initial Problem: ~a~%" initial-problem)
 	(cl-isl:isl-union-set-dump instructions))
@@ -36,11 +36,21 @@ Does the following:
 		   (aref (kernel-domains kernel) 0)
 		   kernel)))
 	    ;; Constructs the original schedule
-	    (print initial-problem)
-	    (print may-read)
-	    (print may-write)
-	    (print schedule)
-	    ))))))
+	    (when verbose
+	      ;; Displaying Original The C Code	      
+	      (print initial-problem)
+	      (print may-read)
+	      (print may-write)
+	      (print schedule)
+	      (let* ((space (cl-isl:isl-set-read-from-str ctx "{:}"))
+		     (build (isl-ast-build-from-context space))
+		     (ast   (isl-ast-build-node-from-schedule build (isl-schedule-copy schedule)))
+		     (c     (isl-ast-node-get-ctx ast))
+		     (p     (isl-printer-to-str c))
+		     (p     (isl-printer-set-output-format p 4)) ;;4=Clang
+		     (q     (isl-printer-print-ast-node p ast))
+		     (str   (isl-printer-get-str q)))
+		(print str)))))))))
 
 ;; Running example
 #+(or)
