@@ -236,7 +236,7 @@
     :int
   (ptr :pointer))
 
-(defcenum isl-schedule-node-type
+(defcenum :isl-schedule-node-type
   (:isl_schedule_node_error 1)
   :isl_schedule_node_band
   :isl_schedule_node_context
@@ -250,7 +250,7 @@
   :isl_schedule_node_sequence
   :isl_schedule_node_set)
 
-(defcenum isl-dim-type
+(defcenum :isl-dim-type
   :isl_dim_cst
   :isl_dim_param
   :isl_dim_in

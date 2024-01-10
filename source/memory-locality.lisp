@@ -201,7 +201,7 @@
 	   (n
 	     (%"isl_multi_union_pw_aff_dim"
 	       :pointer sched-copy
-	       isl-dim-type (foreign-enum-keyword 'isl-dim-type 3)
+	       :int 3
 	       :int))
 	   (count 0)
 	   (upas (loop for i upfrom 0 below n
@@ -253,13 +253,13 @@
 	   (isl-schedule-node-get-type (obj)
 	     (foreign-funcall "isl_schedule_node_get_type"
 			      :pointer obj
-			      isl-schedule-node-type)))
+			      :int)))
       (loop named find-node
 	    while (> (the fixnum (%isl-schedule-node-n-children node)) 0) do
 	      (loop named band-loop
 		    for i fixnum upfrom 0 below (the fixnum (%isl-schedule-node-n-children node))
-		    for band = (isl-schedule-node-get-child schedule i)
-		    if (eql (print (isl-schedule-node-get-type band)) :a) ;; TODO: how to prove == band?
+		    for band = (isl-schedule-node-get-child node i)
+		    if (eql (print (isl-schedule-node-get-type band)) 0) ;; TODO: how to prove == band?
 		      do (reorder-band! band loop-orders ctx)
 			 (setf next-nodes (if next-nodes
 					      (append next-nodes (list (isl-schedule-node-get-child band 0)))
@@ -267,9 +267,9 @@
 			 (return-from band-loop)
 		    else
 		      do (setf next-nodes (if next-nodes (append next-nodes (list band)) (list band))))
-
 	      (when (= (length next-nodes) 0)
 		(return-from find-node))
+	      (setf node (car (last next-nodes)))
 	      (setf next-nodes (butlast next-nodes)))))
   nil)
 
