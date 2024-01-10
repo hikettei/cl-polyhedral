@@ -1,0 +1,3 @@
+[submodule "isl"]
+	path = isl
+	url = git@github.com:Meinersbur/isl.git
