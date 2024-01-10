@@ -17,11 +17,15 @@ Does the following:
   
   (with-isl-ctx ctx
     (let* ((initial-problem (Kernel->ISL kernel))
-	   (instructions    (cl-isl:isl-union-set-read-from-str ctx initial-problem)))
+	   (instructions    (isl-union-set-read-from-str ctx initial-problem)))
+      (declare (type isl-union-set instructions))
       
       (when verbose
 	(format t "Initial Problem: ~a~%" initial-problem)
-	(cl-isl:isl-union-set-dump instructions))
+	(foreign-funcall
+	 "isl_union_set_dump"
+	 :pointer (isl-union-set-ptr instructions)
+	 :void))
 
       (multiple-value-bind (may-read may-write)
 	  (access-isl-rep kernel)
@@ -42,7 +46,7 @@ Does the following:
 	      (print may-read)
 	      (print may-write)
 	      (print schedule)
-	      (let* ((space (cl-isl:isl-set-read-from-str ctx "{:}"))
+	      (let* ((space (isl-set-read-from-str ctx "{:}"))
 		     (build (isl-ast-build-from-context space))
 		     (ast   (isl-ast-build-node-from-schedule build (isl-schedule-copy schedule)))
 		     (c     (isl-ast-node-get-ctx ast))

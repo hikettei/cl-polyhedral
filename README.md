@@ -33,3 +33,32 @@ which can supercharge the matrix operations in the Common Lisp. e.g.: optimizing
 
 - Detailed Installing Steps (ISL, GMP)
 
+
+## Memo: ISL
+
+
+# Getting Started
+
+## Installing ISL
+
+```sh
+$ brew install isl
+$ sudo apt install libisl-dev
+```
+
+## (Optional) Building from the source
+
+```sh
+$ cd ./isl
+$ ./autogen.sh
+$ CFLAGS="$(pkg-config --libs --cflags gmp)" ./configure --prefix $HOME/usr
+$ make -j 8 && make install
+```
+
+Ensure CFFI can find out where libisl.dylib was installed.
+
+```sh
+# e.g.:
+$ locate libisl.dylib
+> /opt/homebrew/lib/libisl.dylib
+```

@@ -6,14 +6,55 @@
 ;; (Which complements the lack of functions in the cl-isl binding)
 ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-(defmacro with-isl-ctx (bind &body body)
-  `(let ((,bind (cl-isl:isl-ctx-alloc)))
-     (unwind-protect
-	  (progn ,@body)
-       (cl-isl:isl-ctx-free ,bind))))
-
 (declaim (inline))
 
+;; ~ ISL-CTX ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+(defstruct isl-ctx ptr)
+(defcfun ("isl_ctx_alloc" %isl-ctx-alloc) :pointer)
+
+(declaim (ftype (function () isl-ctx) isl-ctx-alloc))
+(defun isl-ctx-alloc () (make-isl-ctx :ptr (%isl-ctx-alloc)))
+
+(defcfun ("isl_ctx_free" %isl-ctx-free) :void
+  (ctx :pointer))
+
+(defun isl-ctx-free (ctx) (%isl-ctx-free (isl-ctx-ptr ctx)))
+
+(defmacro with-isl-ctx (bind &body body)
+  `(let ((,bind (isl-ctx-alloc)))
+     (declare (type isl-ctx ,bind))
+     (unwind-protect
+	  (progn ,@body)
+       (isl-ctx-free ,bind))))
+
+;; ~ ISL-SET ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+(defstruct isl-set ptr)
+(defcfun ("isl_set_read_from_str" %isl-set-read-from-str) :pointer
+  (ctx :pointer)
+  (str :string))
+
+(defun isl-set-read-from-str (ctx str)
+  (declare (type isl-ctx ctx)
+	   (type string str))
+  (make-isl-set
+   :ptr
+   (%isl-set-read-from-str (isl-ctx-ptr ctx) str)))
+
+;; ~ ISL-UNION ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+(defstruct isl-union-set ptr)
+(defcfun ("isl_union_set_read_from_str"
+	  %isl-union-set-read-from-str)
+    :pointer
+  (ctx :pointer)
+  (str :string))
+
+(defun isl-union-set-read-from-str (ctx str)
+  (declare (type isl-ctx ctx)
+	   (type string str))
+  (make-isl-union-set
+   :ptr
+   (%isl-union-set-read-from-str (isl-ctx-ptr ctx) str)))
+  
 (defcfun ("isl_union_map_read_from_str"
 	  %isl-union-map-read-from-str)
     :pointer
@@ -21,11 +62,13 @@
   (x :string))
 
 (defun isl-union-map-read-from-str (ctx str)
-  (declare (type cl-isl:isl-ctx ctx)
+  (declare (type isl-ctx ctx)
 	   (type string str))
-  (%isl-union-map-read-from-str
-   (cl-isl::isl-ctx-ptr ctx)
-   str))
+  (make-isl-union-set
+   :ptr
+   (%isl-union-map-read-from-str
+    (isl-ctx-ptr ctx)
+    str)))
 
 (defcfun ("isl_schedule_from_domain"
 	  %isl-schedule-from-domain)
@@ -33,9 +76,9 @@
   (schedule :pointer))
 
 (defun isl-schedule-from-domain (union-set)
-  (declare (type cl-isl:isl-union-set union-set))
+  (declare (type isl-union-set union-set))
   (%isl-schedule-from-domain
-   (cl-isl::isl-union-set-ptr union-set)))
+   (isl-union-set-ptr union-set)))
 
 (defcfun ("isl_schedule_sequence"
 	  %isl-schedule-sequence)
@@ -53,9 +96,9 @@
   (x   :string))
 
 (defun isl-multi-union-pw-aff-read-from-str (ctx x)
-  (declare (type cl-isl::isl-ctx ctx))
+  (declare (type isl-ctx ctx))
   (%isl-multi-union-pw-aff-read-from-str
-   (cl-isl::isl-ctx-ptr ctx)
+   (isl-ctx-ptr ctx)
    x))
 
 (defcfun ("isl_schedule_insert_partial_schedule"
@@ -65,9 +108,9 @@
   (schedule :pointer))
 
 (defun isl-schedule-insert-partial-schedule (ctx schedule)
-  (declare (type cl-isl::isl-ctx ctx))
+  (declare (type isl-ctx ctx))
   (%isl-schedule-insert-partial-schedule
-   (cl-isl::isl-ctx-ptr ctx)
+   (isl-ctx-ptr ctx)
    schedule))
 
 (defcfun ("isl_ast_build_from_context"
@@ -76,9 +119,9 @@
   (set :pointer))
 
 (defun isl-ast-build-from-context (set)
-  (declare (type cl-isl:isl-set set))
+  (declare (type isl-set set))
   (%isl-ast-build-from-context
-   (cl-isl::isl-set-ptr set)))
+   (isl-set-ptr set)))
 
 (defcfun "isl_ast_build_node_from_schedule"
     :pointer

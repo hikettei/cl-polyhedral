@@ -17,7 +17,6 @@
 ;; ~~ Utils ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ;; Memo: In order to find a path where cl-polyhedral was installed,
 ;; this library must be loaded via asdf:load-system or ql:quickload otherwise CFFI can't find ISL!
-
 (defvar *src-dir* (asdf:component-pathname (asdf:find-system "cl-polyhedral")))
 (labels ((load-helper ()
 	   (restart-case

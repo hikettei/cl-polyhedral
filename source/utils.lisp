@@ -176,10 +176,10 @@ Return: (values may-read may-write)"
      (get-output-stream-string reads)
      (get-output-stream-string writes))))
 
-(declaim (ftype (function (cl-isl:isl-ctx Domain Kernel &optional list) t) schedule-tree-isl-rep))
+(declaim (ftype (function (isl-ctx Domain Kernel &optional list) t) schedule-tree-isl-rep))
 (defun schedule-tree-isl-rep (ctx domain kernel &optional parent-doms)
   "Constructs an original shcedule for dependency analysis"
-  (declare (type cl-isl:isl-ctx ctx)
+  (declare (type isl-ctx ctx)
 	   (type domain domain)
 	   (type kernel kernel)
 	   (type list parent-doms)
@@ -195,7 +195,7 @@ Return: (values may-read may-write)"
 				(kernel-domains kernel)
 				(kernel-args kernel)
 				(kernel-constants kernel)))
-		   (inst-dom   (cl-isl:isl-union-set-read-from-str
+		   (inst-dom   (isl-union-set-read-from-str
 				ctx
 				(Kernel->ISL tmp-kernel)))
 		   (inst-schedule (isl-schedule-from-domain inst-dom)))

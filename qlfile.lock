@@ -2,7 +2,3 @@
  (:class qlot/source/dist:source-dist
   :initargs (:distribution "https://beta.quicklisp.org/dist/quicklisp.txt" :%version :latest)
   :version "2023-10-21"))
-("cl-isl" .
- (:class qlot/source/github:source-github
-  :initargs (:repos "hikettei/cl-isl" :ref nil :branch nil :tag nil)
-  :version "github-24e01981ea79e3b17447b55cc4b951a6c6b67274"))
