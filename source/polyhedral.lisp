@@ -26,7 +26,6 @@ Does the following:
 
   (macrolet ((with-verbose-level ((number) &body body) `(when (>= verbose ,number) ,@body)))
     (with-isl-ctx ctx
-      
       (foreign-funcall
        "isl_options_set_on_error"
        :pointer (isl-ctx-ptr ctx)
@@ -125,11 +124,11 @@ Does the following:
 			flow)))
 		
 		(with-verbose-level (3)
-		  (format t "~%RAW Dependencies:~%")
+		  (format t "~%RAW Dependencies(verbose=3):~%")
 		  (%isl-union-map-dump raw-deps)
-		  (format t "~%WAW Dependencies:~%")
+		  (format t "~%WAW Dependencies(verbose=3):~%")
 		  (%isl-union-map-dump waw-deps)
-		  (format t "~%WAR Dependencies:~%")
+		  (format t "~%WAR Dependencies(verbose=3):~%")
 		  (%isl-union-map-dump war-deps))
 
 		(macrolet ((set-option (name level)
@@ -162,7 +161,7 @@ Does the following:
 			  (%isl-union-map-copy all-deps))))
 
 		  (with-verbose-level (3)
-		    (format t "~%Schedule Constraints:~%")
+		    (format t "~%Schedule Constraints(verbose=3):~%")
 		    (foreign-funcall
 		     "isl_schedule_constraints_dump"
 		     :pointer schedule-constraints
@@ -175,7 +174,7 @@ Does the following:
 			    :pointer schedule-constraints
 			    :pointer)))
 		    (with-verbose-level (3)
-		      (format t "~% Schedule Per Tiling:~%")
+		      (format t "~% Schedule Per Tiling(verbose=3):~%")
 		      (foreign-funcall
 		       "isl_schedule_dump"
 		       :pointer schedule
@@ -184,10 +183,10 @@ Does the following:
 		    (let* ((loop-orders
 			     (get-best-nesting-orders kernel (= verbose 3))))
 		      (with-verbose-level (3)
-			(format t "~% New Loop Orders:~%~a~%" loop-orders))
+			(format t "~% New Loop Orders(verbose=3):~%~a~%" loop-orders))
 		      (apply-reorder-schedule-loops! schedule ctx loop-orders)		      
 		      (with-verbose-level (3)
-			(format t "~% New Reorderd Schedules:~%")
+			(format t "~% New Reorderd Schedules(verbose=3):~%")
 			(foreign-funcall
 			 "isl_schedule_dump"
 			 :pointer schedule
@@ -197,7 +196,7 @@ Does the following:
 			(setf schedule (tile-schedule kernel schedule ctx tile)))
 
 		      (with-verbose-level (3)
-			(format t "~% New Schedule After Tiling:~%")
+			(format t "~% New Schedule After Tiling(verbose=3):~%")
 			(foreign-funcall
 			 "isl_schedule_dump"
 			 :pointer schedule
@@ -215,7 +214,7 @@ Does the following:
 				 (q (isl-printer-print-ast-node p ast))
 				 (s (isl-printer-get-str q)))
 			    
-			    (format t "~% Final C Code: ~%~a~%" s)))
+			    (format t "~%Final C Code(verbose=2): ~%~a~%" s)))
 
 
 			))))))))))))
@@ -268,6 +267,8 @@ Does the following:
 		   (setf (aref :Z i k) 0.0))
 	      (for (k 0 10)
 		   (setf (aref :Z i k) (mulf (aref :X i j) (aref :Y j k) (aref :Z i k)))))))
-  :verbose 3))
+  :verbose 2))
 
 ;; Conv
+
+
