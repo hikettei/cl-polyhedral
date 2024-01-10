@@ -18,6 +18,7 @@ Does the following:
   (with-isl-ctx ctx
     (let* ((initial-problem (Kernel->ISL kernel))
 	   (instructions    (cl-isl:isl-union-set-read-from-str ctx initial-problem)))
+      ;;(print instructions)
       (when verbose
 	(format t "Initial Problem: ~a~%" initial-problem)
 	(cl-isl:isl-union-set-dump instructions))
@@ -29,11 +30,17 @@ Does the following:
 	    (values
 	     (isl-union-map-read-from-str ctx may-read)
 	     (isl-union-map-read-from-str ctx may-write))
-	     
-	(print may-read)
-	(print may-write)
-
-	)))))
+	  (let ((schedule
+		  (schedule-tree-isl-rep
+		   ctx
+		   (aref (kernel-domains kernel) 0)
+		   kernel)))
+	    ;; Constructs the original schedule
+	    (print initial-problem)
+	    (print may-read)
+	    (print may-write)
+	    (print schedule)
+	    ))))))
 
 ;; Running example
 #+(or)

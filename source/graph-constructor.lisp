@@ -26,7 +26,7 @@
       (trivia:<>
        (list ,id-bind ,subscript-bind)
        (list (second ,aref-expr) (cddr ,aref-expr)))))
-		   
+
 (defun make-kernel-from-dsl (buffers &rest body
 			     &aux instructions domains)
   "
@@ -54,9 +54,7 @@ TODO
 ```
 "
   (declare (type list buffers body)
-	   ;;(optimize (speed 3))
-	   )
-  ;; TODO: Writing a graph of dependencies
+	   (optimize (speed 3)))
 
   (labels ((to-array (type x)
 	     (make-array `(,(length x)) :initial-contents x :element-type type))
@@ -71,7 +69,10 @@ TODO
 			if (symbolp exp)
 			  do (push exp depends)
 			if (listp exp)
-			  do (setf depends `(,@depends ,@(expr-depends-on exp))))
+			  do (setf depends (if depends
+					       (append depends (expr-depends-on exp))
+					       (expr-depends-on expr))))
+				   
 		  depends))
 	       ((list* (type symbol) _)
 		;; (car arg1 arg2 ...)
@@ -81,7 +82,9 @@ TODO
 			if (symbolp exp)
 			  do (push exp depends)
 			if (listp exp)
-			  do (setf depends `(,@depends ,@(expr-depends-on exp))))
+			  do (setf depends (if depends
+					       (append depends (expr-depends-on expr))
+					       (expr-depends-on expr))))
 		  depends))
 	       ((type Variable-T)
 		;; Symbol, or keyword
@@ -93,6 +96,12 @@ TODO
 	   (helper (expr &optional (conditioned nil) (parent-doms nil))
 	     (declare (type list conditioned))
 	     (trivia:ematch expr
+	       ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	       ;; Iteration, iterates the body over [from, to] by by, binding the count to bind.
+	       ;; defined as:
+	       ;; (for (bind from &optional to by)
+	       ;;      &body body)
+	       ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	       ((list* 'for
 		       (range-pattern bind from to by)
 		       _)
@@ -104,14 +113,17 @@ TODO
 			  (remove-duplicates `(,@(expr-depends-on from) ,@(expr-depends-on to) ,@(expr-depends-on by)))))
 		       (domain-instructions
 			 (loop for subbody in (cddr expr)
-			       for result = (helper subbody conditioned `(,@parent-doms ,domain-tmp))
+			       for result = (helper subbody conditioned (if parent-doms `(,@parent-doms ,domain-tmp) (list domain-tmp)))
 			       if (Instruction-p result)
 				 collect
 				 (progn
 				   (push result instructions)
 				   (setf (inst-depends-on result)
 					 (remove-duplicates
-					  `(,@(inst-depends-on result) ,bind)))
+					  (let ((tmp (inst-depends-on result))) ;; <-> (append tmp (list bind)), rebundant lines are for optimizing
+					    (if tmp
+					      (append tmp (list bind))
+					      (list bind)))))
 				   result)
 				 ;; If the result is nested; flatten and list up instructions.
 			       if (listp result)
@@ -121,13 +133,24 @@ TODO
 					 collect (progn
 						   (setf (inst-depends-on x)
 							 (remove-duplicates
-							  `(,@(inst-depends-on x) ,bind)))
+							  (let ((tmp (inst-depends-on x))) ;; <-> (append tmp (list bind)), rebundant lines are for optimizing
+							    (if tmp
+								(append tmp (list bind))
+								(list bind)))))
 						   (push x instructions)
 						   x)))))
 		  (setf (domain-instructions domain-tmp) (to-array 'Instruction domain-instructions))
 		  (push
 		   domain-tmp
 		   domains)))
+	       ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	       ;; When, the body is conditioned under condition
+	       ;; (when condition &body body)
+	       ;; Condition is constrained by:
+	       ;;  - Using aref inside `condition` is prohibited
+	       ;;    - otherwise the form become too complicated that dependencies cannot be solved.
+	       ;;  - i.e.: indices, numbers are the only variables that can be used.
+	       ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	       ((list*
 		 'when
 		 condition
@@ -136,11 +159,18 @@ TODO
 		(map
 		 'list
 		 #'(lambda (exp)
-		     (helper exp `(,@conditioned ,condition) parent-doms))
+		     (helper
+		      exp
+		      (if conditioned
+			  `(,@conditioned ,condition)
+			  (list condition))
+		      parent-doms))
 		 (cddr expr)))
-	       ;; Data Movements:
-	       ;; (setf (aref target id1 id2) scalar)
-	       ;; or (setf (aref target id1 id2) (aref source id1 id2))
+	       ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	       ;;  Instruction (Data Movements)
+	       ;; A Syntax sugar for (setf (aref :X i j) (:MOVE (aref :X i j) (aref :Y i j)))
+	       ;;  or (setf (aref :X i j) 0)
+	       ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	       ((list
 		 'setf
 		 (aref-pattern (second expr) target-id target-subscripts)
@@ -162,6 +192,11 @@ TODO
 			 conditioned)))
 		  (push inst instructions)
 		  inst))
+	       ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	       ;;  Instruction
+	       ;; (setf (aref :X ...) (op-function (aref :Y ...) (aref :Z ...) ...))
+	       ;;  <-> Instruction where op=op-function, target=:X, sources=:Y :Z...
+	       ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	       ((list*
 		 'setf
 		 (aref-pattern (second expr) target-id target-subscripts)

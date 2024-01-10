@@ -21,7 +21,7 @@
 (defun unique-identifier ()
   (string-downcase (gensym "id")))
 
-(declaim (ftype (function (Kernel) String) get-params-str))
+(declaim (ftype (function (Kernel) string) get-params-str))
 (defun get-params-str (kernel)
   "Returns a string representing a list of constants in the kernel
 e.g.: [A, B, C]"
@@ -175,4 +175,78 @@ Return: (values may-read may-write)"
     (values
      (get-output-stream-string reads)
      (get-output-stream-string writes))))
-     
+
+(declaim (ftype (function (cl-isl:isl-ctx Domain Kernel &optional list) t) schedule-tree-isl-rep))
+(defun schedule-tree-isl-rep (ctx domain kernel &optional parent-doms)
+  "Constructs an original shcedule for dependency analysis"
+  (declare (type cl-isl:isl-ctx ctx)
+	   (type domain domain)
+	   (type kernel kernel)
+	   (type list parent-doms)
+	   (optimize (speed 3)))
+
+  (let ((parent-doms `(,domain ,@parent-doms))
+	(schedule :nothing))
+    (loop for inst across (domain-instructions domain)
+	  if (instruction-p inst) do
+	    ;; Construct Instruction Schedule
+	    (let* ((tmp-kernel (make-kernel
+				(make-array `(1) :initial-element inst)
+				(kernel-domains kernel)
+				(kernel-args kernel)
+				(kernel-constants kernel)))
+		   (inst-dom   (cl-isl:isl-union-set-read-from-str
+				ctx
+				(Kernel->ISL tmp-kernel)))
+		   (inst-schedule (isl-schedule-from-domain inst-dom)))
+	      (if (eql schedule :nothing)
+		  (setf schedule inst-schedule)
+		  (setf schedule (isl-schedule-sequence schedule inst-schedule))))
+	  else do
+	    ;; Domain
+	    (let ((dom-schedule
+		    (schedule-tree-isl-rep ctx inst kernel parent-doms)))
+	      (if (eql schedule :nothing)
+		  (setf schedule dom-schedule)
+		  (setf schedule (isl-schedule-sequence schedule dom-schedule)))))
+    (let ((insts))
+      (loop for inst across (kernel-instructions kernel)
+	    if (find (domain-subscript domain) (inst-depends-on inst)) do
+	      (push insts inst))
+      (let ((partial (partial-schedule-isl (list domain) insts kernel)))
+	(when (not (string= partial "[]"))
+	  (setf partial (isl-multi-union-pw-aff-read-from-str ctx partial)
+		schedule (isl-schedule-insert-partial-schedule ctx partial)))
+	(assert (not (eql schedule :nothing))
+		()
+		"Assertion Failed with schedule != :nothing. Ensure that instructions are properly nested!")
+
+	schedule))))
+
+;; TODO: Optimize this function
+(declaim (ftype (function (list list Kernel) (simple-array character (*))) partial-schedule-isl))
+(defun partial-schedule-isl (domains instructions kernel)
+  "Constructs a partial schedule for ISL rep"
+  (declare (type list domains instructions)
+	   (type Kernel kernel)
+	   (optimize (speed 3)))
+  (with-output-to-string (out)
+    (princ "[" out)
+    (loop with dcount fixnum = 0
+	  for domain in domains do
+	    (let ((set ""))
+	      (loop with icount fixnum = 0
+		    for inst in instructions
+		    if (find (domain-subscript domain) (inst-depends-on inst)) do
+		      (when (not (= icount 0))
+			(setf set (format nil "~a; " set)))
+		      (incf icount)
+		      (setf set (format nil "~a~a~a->[(~a)]" set (inst-op inst) (get-related-domains inst kernel) (domain-subscript domain))))
+	      (when (not (string= set ""))
+		(when (not (= dcount 0))
+		  (princ ", " out))
+		(incf dcount)
+		(format out "{~a}" set))))
+    (princ "]" out)))
+
+

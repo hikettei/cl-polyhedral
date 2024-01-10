@@ -43,7 +43,7 @@
 - subscript[symbol] a symbol indicating the loop iterator
 - from, to, by[one of list, fixnum, or symbol] the bound of iteration. [from, to) by `by`
 - depends-on[list] a list of symbol depends on."
-  (instructions instructions :type (simple-array Instruction (*)))
+  (instructions instructions :type (simple-array (or Domain Instruction) (*)))
   (subscript    subscript    :type Variable-T)
   (from         from :type Expr)
   (to           to   :type Expr)
