@@ -1,6 +1,9 @@
 
 (cl:in-package :cl-polyhedral)
 
+(defun range (from below &optional (by 1))
+  (loop for i upfrom from below below by by collect i))
+
 (defun map-split (split-with function &rest sequences)
   "A helper function merging A B C -> A, B, C"
   (apply
@@ -75,7 +78,7 @@ e.g.: 0 <= i <= n and 0 <= j <= n"
 			 (if (inst-conds inst)
 			     (format nil " and ~a " (map-split " and " #'lisp->isl (inst-conds inst)))
 			     " ")))
-		  (if (= 1 (domain-by domain))
+		  (if (eql 1 (domain-by domain))
 		      (format out "~a <= ~(~a~) <= ~a~a"
 			      (domain-from domain)
 			      (domain-subscript domain)
@@ -248,4 +251,33 @@ Return: (values may-read may-write)"
 		(incf dcount)
 		(format out "{~a}" set))))
     (princ "]" out)))
+
+(declaim (ftype (function (list) list)
+		column-major-calc-strides
+		row-major-calc-strides))
+(defun column-major-calc-strides (shape)
+  (declare (type list shape))
+  (let* ((num-dims (length shape))
+         (strides (make-list num-dims :initial-element 1)))
+    (loop for i downfrom (- num-dims 2) to 0 do
+      (setf (nth i strides) (* (nth (+ i 1) strides) (nth (+ i 1) shape))))
+    strides))
+
+(defun row-major-calc-strides (shape)
+  (declare (type list shape))
+  (let* ((num-dims (length shape))
+         (strides (make-list num-dims :initial-element 1)))
+    (loop for i from 1 to (- num-dims 1) do
+      (setf (nth i strides) (* (nth (- i 1) strides) (nth (- i 1) shape))))
+    strides))
+
+(defun get-expr-all-symbols (expr)
+  "Extracts all the symbol used in the expr.
+e.g.: (+ a 1) -> a"
+  (declare (optimize (speed 3)))
+  (trivia:ematch expr
+    ((type symbol) (list expr))
+    ((type number))
+    ((list* (type symbol) _)
+     (apply #'concatenate 'list (map 'list #'get-expr-all-symbols (cdr expr))))))
 

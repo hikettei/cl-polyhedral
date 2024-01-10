@@ -9,6 +9,7 @@
    (:file "source/graph-constructor")
    (:file "source/isl")
    (:file "source/utils")
+   (:file "source/memory-locality")
    (:file "source/polyhedral")
    (:file "source/codegen"))
   :in-order-to

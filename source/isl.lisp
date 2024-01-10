@@ -57,6 +57,29 @@
 	  %isl-union-map-dump)
     :void
   (union-map :pointer))
+
+(defcfun ("isl_union_set_copy"
+	  %isl-union-set-copy)
+    :pointer
+  (set :pointer))
+
+(defcfun ("isl_schedule_constraints_set_validity"
+	  %isl-schedule-constraints-set-validity)
+    :pointer
+  (schedule :pointer)
+  (map :pointer))
+
+(defcfun ("isl_schedule_constraints_set_proximity"
+	  %isl-schedule-constraints-set-proximity)
+    :pointer
+  (schedule :pointer)
+  (map :pointer))
+
+(defcfun ("isl_union_map_union"
+	  %isl-union-map-union)
+    :pointer
+  (map1 :pointer)
+  (map2 :pointer))
   
 (defcfun ("isl_union_map_read_from_str"
 	  %isl-union-map-read-from-str)
@@ -123,6 +146,11 @@
   (declare (type isl-union-set union-set))
   (%isl-schedule-from-domain
    (isl-union-set-ptr union-set)))
+
+(defcfun ("isl_schedule_constraints_on_domain"
+	  %isl-schedule-constraints-on-domain)
+    :pointer
+  (schedule :pointer))
 
 (defcfun ("isl_schedule_sequence"
 	  %isl-schedule-sequence)

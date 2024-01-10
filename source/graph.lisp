@@ -2,7 +2,7 @@
 (cl:in-package :cl-polyhedral)
 
 (deftype Variable-T () `(or symbol keyword))
-(deftype Expr () `(or list fixnum symbol))
+(deftype Expr () `(or list number symbol))
 
 ;; TODO: Writing sections for
 ;;   - Graph Structure
@@ -13,11 +13,23 @@
   (instruction struct)
   (Domain      struct))
 
+(defun select-memory-order (order)
+  (case order
+    (:row #'row-major-calc-strides)
+    (:column #'column-major-calc-strides)
+    (T
+     (error "select-memory-order: order should be a one of :column/:row~%butgot: ~a" order))))
+
 (defstruct (Buffer
-	    (:constructor make-buffer (name shape dtype)))
-  "Represents an array in the kernel."
+	    (:constructor make-buffer (name shape dtype
+				       &key
+					 (order :column)
+					 (strides (funcall (select-memory-order order) shape)))))
+  "Represents an array in the kernel.
+"
   (name name   :type Variable-T)
   (shape shape :type list)
+  (strides strides :type list)
   (dtype dtype :type Variable-T))
 
 (defstruct (Instruction
