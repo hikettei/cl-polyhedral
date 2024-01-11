@@ -9,21 +9,29 @@ Indicates the level of logging. 0 or 1 or 2
 2 -> Display before/after schedules
 3 -> Displays all progresses")
 
-;; TODO: Adding options;
+;; TODO:
+;;  - Tiling (4 x 4?) Autotuning
+;;  - SIMDify
+;;  - Loop Collapse (If strides are nothing)
 
 (defun run-polyhedral
     (kernel
      &key
-       (tile 0)
-       (verbose *verbose*))
+       (parallel nil)
+       (simd 0)
+       (tile nil)
+       (verbose *verbose*)
+       (tile-element-n-byte (apply #'max (map 'list #'buffer-n-byte (kernel-args kernel)))))
   "Gains the optimized kernel obtained from transforming the given kernel using Polyhedral Model.
 Does the following:
 - 1. Creates a context and space for ISL
 - 
 "
   (declare (type Kernel kernel)
+	   (type boolean tile)
+	   (type fixnum tile-element-n-byte)
 	   (type (integer 0 3) verbose))
-
+  
   (macrolet ((with-verbose-level ((number) &body body) `(when (>= verbose ,number) ,@body)))
     (with-isl-ctx ctx
       (foreign-funcall
@@ -140,6 +148,8 @@ Does the following:
 		  (set-option "isl_options_set_schedule_whole_component" 1)
 		  (set-option "isl_options_set_schedule_treat_coalescing" 1)
 		  (set-option "isl_options_set_tile_scale_tile_loops" 1)
+		  ;;(set-option "isl_options_set_schedule_split_scaled" 1)
+		  (set-option "isl_options_set_schedule_serialize_sccs" 1)
 		  ;; More ...
 		  )
 
@@ -192,8 +202,8 @@ Does the following:
 			 :pointer schedule
 			 :void))
 
-		      (when (not (= tile 0))
-			(setf schedule (tile-schedule kernel schedule ctx tile)))
+		      (when tile
+			(setf schedule (tile-schedule kernel schedule ctx tile-element-n-byte)))
 
 		      (with-verbose-level (3)
 			(format t "~% New Schedule After Tiling(verbose=3):~%")
@@ -203,7 +213,6 @@ Does the following:
 			 :void))
 
 		      ;; Constructs AST From Scheduled Nodes
-
 		      (let* ((space (isl-set-read-from-str ctx "{:}"))
 			     (build (isl-ast-build-from-context space))
 			     (ast   (isl-ast-build-node-from-schedule build schedule)))
@@ -227,14 +236,30 @@ Does the following:
   (list
    (make-buffer :X `(10 10) :FLOAT)
    (make-buffer :Y `(10 10) :FLOAT)
-   (make-buffer :Z `(10 10) :FLOAT))
+   (make-buffer :Z `(10 10) :FLOAT)
+   (make-buffer :a `(10 10) :float))
   `(for (i 0 10)
 	(for (j 0 10)
 	     (setf (aref :X i j) (sin (aref :Y i j)))
 	     (setf (aref :Z i j) (cos (aref :Y i j)))))
-  `(for (j 0 10)
-	(for (i 0 10)
+  `(for (i 0 10)
+	(for (j 0 10)
 	     (setf (aref :Z i j) (logn (aref :Y i j))))))
+ :verbose 3)
+
+;; Reduce Sum
+#+(and)
+(run-polyhedral
+ (make-kernel-from-dsl
+  (list
+   (make-buffer :X `(10 10) :FLOAT)
+   (make-buffer :Y `(10 1)  :FLOAT))
+  `(for (i 0 10)
+	(for (j 0 1)
+	     (setf (aref :Y i j) 0.0)))
+  `(for (i 0 10)
+	(for (j 0 10)
+	     (setf (aref :Y i j) (add (aref :Y i j) (aref :X i j))))))
  :verbose 3)
 
 ;; Gemm
@@ -243,14 +268,15 @@ Does the following:
  (run-polyhedral
   (make-kernel-from-dsl
    (list
-    (make-buffer :X `(10 20) :FLOAT)
-    (make-buffer :Y `(20 30) :FLOAT)
-    (make-buffer :Z `(10 30) :FLOAT))
-   `(for (i 10)
-	 (for (j 0 20)
-	      (for (k 0 30)
+    (make-buffer :X `(100 256) :FLOAT)
+    (make-buffer :Y `(256 512) :FLOAT)
+    (make-buffer :Z `(100 512) :FLOAT))
+   `(for (i 100)
+	 (for (j 0 256)
+	      (for (k 0 512)
 		   (setf (aref :Z i k) (mulf (aref :X i j) (aref :Y j k) (aref :Z i k)))))))
-  :verbose 3))
+  :verbose 3
+  :tile t))
 
 ;; Gemm (Z=0)
 #+(and)
@@ -263,8 +289,6 @@ Does the following:
     (make-buffer :Z `(10 10) :FLOAT))
    `(for (i 10)
 	 (for (j 0 10)
-	      (for (k 0 10)
-		   (setf (aref :Z i k) 0.0))
 	      (for (k 0 10)
 		   (setf (aref :Z i k) (mulf (aref :X i j) (aref :Y j k) (aref :Z i k)))))))
   :verbose 3))
@@ -283,9 +307,39 @@ Does the following:
 		   (for (d 0 40)
 			(for (e 0 50)
 			     (for (f 0 60)
-				  (setf (aref :X a b d c e f) (aref :Y f e a d b c)))))))))      
+				  (setf (aref :X a b d c e f) (aref :Y f e a d b c)))))))))
   :verbose 3))
 
-;; Conv
+;; Conv2D
 
+;;for (n in 0..batch)
+;;for (fout in 0..out_features)
+;;for (y in 1..H-1)
+;;for (x in 1..W-1)
+;;for (fin in 0..in_features)
+;;for (k0 in 0..3)
+;;for (k1 in 0..3)
+;;conv[n, fout, y, x] += weigths[fout, fin, y, x] * input[n, fin, y+k0, x+k1];
+
+#+(and)
+(multiple-value-bind (N img-x img-y in-features out-features k-x k-y)
+    (values 10 128 128 32 32 25 25)
+  (time
+   (run-polyhedral
+    (make-kernel-from-dsl
+     (list
+      (make-buffer :X `(,N ,in-features ,img-x ,img-y) :FLOAT)
+      (make-buffer :W `(,out-features ,in-features ,k-x ,k-y) :FLOAT)
+      (make-buffer :OUT `(,N ,out-features ,img-x ,img-y) :float))
+     `(for (N ,N)
+	   (for (fout ,out-features)
+		(for (y 0 ,(1- img-y))
+		     (for (x 0 ,(1- img-x))
+			  (for (fin ,in-features)
+			       (for (k0 ,k-x)
+				    (for (k1 ,k-y)
+					 ;; C = C + A*B 
+					 (setf (aref :OUT n fout y x) (affine (aref :OUT n fout y x) (aref :W fout fin y x) (aref :X n fin (+ y k0) (+ x k1))))))))))))
+    :verbose 2
+    :tile t)))
 

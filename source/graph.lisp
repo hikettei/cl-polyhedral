@@ -21,16 +21,18 @@
      (error "select-memory-order: order should be a one of :column/:row~%butgot: ~a" order))))
 
 (defstruct (Buffer
-	    (:constructor make-buffer (name shape dtype
+	    (:constructor make-buffer (name shape element-cffi-type
 				       &key
-					 (order :column)
-					 (strides (funcall (select-memory-order order) shape)))))
+					 (order   :column)
+					 (strides (funcall (select-memory-order order) shape))
+					 (n-byte  (foreign-type-size element-cffi-type)))))
   "Represents an array in the kernel.
 "
   (name name   :type Variable-T)
   (shape shape :type list)
   (strides strides :type list)
-  (dtype dtype :type Variable-T))
+  (dtype element-cffi-type :type Variable-T)
+  (n-byte n-byte :type fixnum))
 
 (defstruct (Instruction
 	    (:conc-name inst-)

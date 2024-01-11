@@ -257,7 +257,7 @@
 	      (loop named band-loop
 		    for i fixnum upfrom 0 below (the fixnum (%isl-schedule-node-n-children node))
 		    for band = (isl-schedule-node-get-child node i)
-		    if (eql (isl-schedule-node-get-type band) 0) ;; TODO: how to prove == band?
+		    if (eql (isl-schedule-node-get-type band) 0)
 		      do (reorder-band! band loop-orders ctx)
 			 (setf next-nodes (if next-nodes
 					      (append next-nodes (list (isl-schedule-node-get-child band 0)))

@@ -17,6 +17,7 @@
 ;; Memo: In order to find a path where cl-polyhedral was installed,
 ;; this library must be loaded via asdf:load-system or ql:quickload otherwise CFFI can't find ISL!
 (defvar *src-dir* (asdf:component-pathname (asdf:find-system "cl-polyhedral")))
+;; Dependency1. ISL ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 (labels ((load-helper ()
 	   (restart-case
 	       (handler-case
@@ -59,3 +60,17 @@
 		    (alexandria:read-stream-content-into-string error-output)))
 		 (load-helper))))))
   (load-helper))
+
+
+;; 2. Dependency2. HwLOC (Optional) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+(labels ((load-helper ()
+	   (handler-case
+	       (progn
+		 (cffi:load-foreign-library
+		  '(:default "libhwloc")))
+	     (cffi:load-foreign-library-error (c)
+	       (declare (ignore c))
+	       (warn "cl-polyhedral: HwLoc seens not to be installed on your device, Proceeding with assuming L1=32KB.")))))
+  (load-helper))
+
