@@ -8,11 +8,15 @@
    :mgl-pax)
   (:export
    #:make-kernel-from-dsl
+   #:run-polyhedral
+   #:define-poly-func
+   #:poly-lambda
 
    ))
 
 (in-package :cl-polyhedral)
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
 ;; ~~ Utils ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ;; Memo: In order to find a path where cl-polyhedral was installed,
 ;; this library must be loaded via asdf:load-system or ql:quickload otherwise CFFI can't find ISL!
@@ -74,3 +78,4 @@
 	       (warn "cl-polyhedral: HwLoc seens not to be installed on your device, Proceeding with assuming L1=32KB.")))))
   (load-helper))
 
+) ;; eval-when

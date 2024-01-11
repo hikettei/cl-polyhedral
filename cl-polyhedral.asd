@@ -22,9 +22,11 @@
   :description ""
   :author      "hikettei <ichndm@gmail.com>"
   :licence     "MIT"
-  :depends-on (#:cl-polyhedral #:rove)
+  :depends-on (#:cl-polyhedral #:rove #:numcl)
   :components
-  ((:file "test/package"))
+  ((:file "test/package")
+   (:file "test/dsl")
+   (:file "test/benchmark"))
   :perform
   (asdf:test-op (o s)
 		(uiop:symbol-call (find-package :rove) :run :cl-polyhedral/test)))

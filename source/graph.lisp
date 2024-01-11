@@ -10,8 +10,10 @@
 ;;   - User-defined codegen backend
 
 (defsection @graph-representation (:title "Graph Representations")
-  (instruction struct)
-  (Domain      struct))
+  (Instruction struct)
+  (Buffer      struct)
+  (Domain      struct)
+  (Kernel      struct))
 
 (defun select-memory-order (order)
   (case order
@@ -76,5 +78,4 @@
   (domains      domains      :type (simple-array Domain (*)))
   (args         args         :type (simple-array Buffer (*)))
   (constants constants       :type (simple-array Buffer (*))))
-
 

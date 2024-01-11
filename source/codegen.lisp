@@ -8,12 +8,11 @@
 ;;  For
 ;;  Body
 
-;; (defgeneric write-operation
-;; (defgeneric write-header
-
 ;; TODO: FuseOp Scheduler
 ;; TODO: Codegen Header部分とBody部分に分ける
 ;; Since the goal is to work on any backends
+
+(defsection @writing-an-extension (:title "Writing an extension"))
 
 (defgeneric codegen-write-id (backend id kernel)
   (:documentation
@@ -211,7 +210,13 @@ instructions = list")
 	    callexpr
 	    (buffer-name target-buffer)
 	    (codegen-write-index-ref backend (cddr (second body)) target-buffer kernel)
-	    (car (third body))
+	    (let ((op (car (third body))))
+	      (case op
+		(add "+")
+		(sub "-")
+		(mul "*")
+		(div "/")
+		(T op)))
 	    (with-output-to-string (out)
 	      (loop for aref in (cdr (third body))
 		    for buffer in source-buffers
@@ -222,4 +227,20 @@ instructions = list")
 		    else do
 		      (format out "~a" (codegen-write-expr backend buffer kernel)))))))
 
+(defgeneric codegen-function (backend body kernel)
+  (:documentation "Writes a header and body of the function.
+(defun (gensym) (args...)
+    body)")
+  (:method ((backend (eql :lisp)) body kernel)
+    (format nil "(lambda (~a) (declare (optimize (speed 3))) ~a)"
+	    (with-output-to-string (out)
+	      (loop for arg across (kernel-args kernel) do
+		(format out "~a " (buffer-name arg))))
+	    body)))
+
+;; Function Loader
+(defgeneric load-optimized-function (backend body kernel)
+  (:documentation "The function compiles the given body and kernel, returning a funcallable object")
+  (:method ((backend (eql :lisp)) body kernel)
+    (eval (read-from-string body))))
 

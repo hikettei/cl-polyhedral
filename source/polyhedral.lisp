@@ -229,9 +229,18 @@ Does the following:
 				 (s (isl-printer-get-str q)))
 			    
 			    (format t "~%Final C Code(verbose=2): ~%~a~%" s)))
-
-			;; Genearing a code based on the backend.
-			(print (read-from-string (parse-isl-ast backend ast kernel parallel)))))))))))))))
+			(let ((body
+				(codegen-function
+				 backend
+				 (parse-isl-ast backend ast kernel parallel)
+				 kernel)))
+			  (with-verbose-level (3)
+			    (format t "~%Final ~a Code(verbose=2):~%~a~%"
+				    backend body))
+			  (load-optimized-function
+			   backend
+			   body
+			   kernel))))))))))))))
 
 ;; Running example
 ;; TODO: OpFusion Scheduling...
@@ -296,7 +305,7 @@ Does the following:
    `(for (i 10)
 	 (for (j 0 10)
 	      (for (k 0 10)
-		   (setf (aref :Z i k) (mulf (aref :X i j) (aref :Y j k) (aref :Z i k)))))))
+		   (incf (aref :Z i k) (mul (aref :X i j) (aref :Y j k)))))))
   :verbose 3))
 
 ;; Permute
@@ -313,7 +322,7 @@ Does the following:
 		   (for (d 0 40)
 			(for (e 0 50)
 			     (for (f 0 60)
-				  (setf (aref :X a b d c e f) (aref :Y f e a d b c)))))))))
+				  (setf (aref :X e b d c f a) (aref :Y f e a d b c)))))))))
   :verbose 3
   :tile nil))
 
@@ -349,3 +358,4 @@ Does the following:
 					 (setf (aref :OUT n fout y x) (affine (aref :OUT n fout y x) (aref :W fout fin y x) (aref :X n fin (+ y k0) (+ x k1))))))))))))
     :verbose 2
     :tile t)))
+

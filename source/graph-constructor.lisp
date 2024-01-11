@@ -28,7 +28,9 @@
        (list (second ,aref-expr) (cddr ,aref-expr)))))
 
 (defun make-kernel-from-dsl (buffers &rest body
-			     &aux instructions domains)
+			     &aux
+			       instructions
+			       domains)
   "
 Constructs a internal kernel-representation which cl-polyhedral can handle, from the given body.
 Body is represented as a simple DSL consisted of only:
@@ -192,7 +194,7 @@ TODO
 	       ;;    - (setf (aref :X i j) 0)
 	       ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	       ((list
-		 'setf
+		 (or 'setf 'incf 'decf 'mulcf 'divcf)
 		 (aref-pattern (second expr) target-id target-subscripts)
 		 (or
 		  (and
@@ -218,7 +220,7 @@ TODO
 	       ;;  <-> Instruction where op=op-function, target=:X, sources=:Y :Z...
 	       ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	       ((list*
-		 'setf
+		 (or 'setf 'incf 'decf 'mulcf 'divcf)
 		 (aref-pattern (second expr) target-id target-subscripts)
 		 (list* op-function _))
 		;; Interpreted as an operation.
@@ -246,7 +248,7 @@ TODO
 		  (push inst instructions)
 		  inst))	       
 	       (_
-		(error "make-kernel-from-dsl: Detected Illegal Syntax:~%    ~a~%Expected one of:~%    - (when condition &body body)~%    - (for (bind from to expr) &body body)~%    - (setf arg_t (op arg_s1 arg_s2 ...))~%    - arg_t := (aref tensor-name &rest subscripts)" expr)))))
+		(error "make-kernel-from-dsl: Detected Illegal Syntax:~%    ~a~%Expected one of:~%    - (when condition &body body)~%    - (for (bind from to expr) &body body)~%    - (place_expr arg_t (op arg_s1 arg_s2 ...))~%    - arg_t := (aref tensor-name &rest subscripts)~%    - place_exor := setf | incf | decf | mulcf | divcf" expr)))))
     (mapc #'helper body)
     
     (make-kernel
@@ -278,6 +280,29 @@ TODO
     ((list (or '> '>= '< '<=) lhs rhs)
      (format nil "~(~a~) ~a ~(~a~)" (lisp->isl lhs) (car expr) (lisp->isl rhs)))))
 
+(defmacro define-poly-func (name (&rest args) (&key (backend :lisp) (tile t) (verbose 0)) &body body &aux (f (gensym)))
+  "TODO: Docs"
+  (let ((arg-names (loop for arg in args collect (intern (format nil "~a" (car arg))))))
+    `(let ((,f (poly-lambda (,@args) (:backend ,backend :tile ,tile :verbose ,verbose) ,@body)))
+       (defun ,name (,@arg-names)
+	 (funcall ,f ,@arg-names)))))
+
+;; Can't we make it a compile-time function? dumping compiled structure into .fasl
+(defmacro poly-lambda ((&rest args) (&key (backend :lisp) (tile t) (verbose 0)) &body body)
+  "TODO: Docs"
+  `(run-polyhedral
+    (make-kernel-from-dsl
+     (list
+      ,@(loop for arg in args
+	      collect
+	      `(make-buffer ,@arg)))
+     (let ((*package* (find-package :cl-polyhedral)))
+       ',@body))
+    :backend ,backend
+    :tile    ,tile
+    :verbose ,verbose))
+
+    
 
 ;; Example
 ;;  This example includes all syntax used in the DSL

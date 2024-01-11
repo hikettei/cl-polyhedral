@@ -60,18 +60,20 @@
   (declare (type Kernel kernel))
   (with-inlined-foreign-funcall-mode
     (let ((type (%"isl_ast_node_get_type":isl-ast-node-type :pointer ex)))
-      (print type)
+      ;;(print type)
       (ecase type
 	(:isl_ast_node_error
 	 (error ":isl-ast-node-error"))
 	(:isl_ast_node_for
 	 (parse-isl-ast-for   backend ex kernel outermost-p))
 	(:isl_ast_node_if
-	 (parse-isl-ast-if    backend ex kernel))
+	 (parse-isl-ast-if    backend ex kernel)
+	 )
 	(:isl_ast_node_block
 	 (parse-isl-ast-block backend ex kernel outermost-p))
 	(:isl_ast_node_mark
-	 (parse-isl-ast-mark  backend ex kernel))
+	 ;;(parse-isl-ast-mark  backend ex kernel)
+	 "")
 	(:isl_ast_node_user
 	 (parse-isl-ast-user  backend ex kernel))))))
 
