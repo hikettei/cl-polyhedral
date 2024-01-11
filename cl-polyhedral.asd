@@ -12,6 +12,7 @@
    (:file "source/utils")
    (:file "source/tiling")
    (:file "source/memory-locality")
+   (:file "source/ast")
    (:file "source/polyhedral")
    (:file "source/codegen"))
   :in-order-to

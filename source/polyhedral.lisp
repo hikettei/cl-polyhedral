@@ -17,8 +17,9 @@ Indicates the level of logging. 0 or 1 or 2
 (defun run-polyhedral
     (kernel
      &key
-       (parallel nil)
-       (simd 0)
+       (backend :lisp)
+       (parallel t)
+       ;;(simd 0)
        (tile nil)
        (verbose *verbose*)
        (tile-element-n-byte (apply #'max (map 'list #'buffer-n-byte (kernel-args kernel)))))
@@ -28,7 +29,8 @@ Does the following:
 - 
 "
   (declare (type Kernel kernel)
-	   (type boolean tile)
+	   (type keyword backend)
+	   (type boolean tile parallel)
 	   (type fixnum tile-element-n-byte)
 	   (type (integer 0 3) verbose))
   
@@ -225,8 +227,8 @@ Does the following:
 			    
 			    (format t "~%Final C Code(verbose=2): ~%~a~%" s)))
 
-
-			))))))))))))
+			;; Genearing a code based on the backend.
+			(print (parse-isl-ast backend ast kernel parallel))))))))))))))
 
 ;; Running example
 ;; TODO: OpFusion Scheduling...
@@ -274,7 +276,7 @@ Does the following:
    `(for (i 100)
 	 (for (j 0 256)
 	      (for (k 0 512)
-		   (setf (aref :Z i k) (mulf (aref :X i j) (aref :Y j k) (aref :Z i k)))))))
+		   (setf (aref :Z i k) (incfmul (aref :X i j) (aref :Y j k) (aref :Z i k)))))))
   :verbose 3
   :tile t))
 
@@ -308,7 +310,8 @@ Does the following:
 			(for (e 0 50)
 			     (for (f 0 60)
 				  (setf (aref :X a b d c e f) (aref :Y f e a d b c)))))))))
-  :verbose 3))
+  :verbose 3
+  :tile nil))
 
 ;; Conv2D
 
