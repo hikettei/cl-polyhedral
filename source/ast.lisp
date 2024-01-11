@@ -73,8 +73,7 @@
 	(:isl_ast_node_mark
 	 (parse-isl-ast-mark  backend ex kernel))
 	(:isl_ast_node_user
-	 ;;(parse-isl-ast-user  backend ex kernel)
-	 "")))))
+	 (parse-isl-ast-user  backend ex kernel))))))
 
 (defun parse-isl-ast-block (backend ex kernel outermost-p)
   (with-inlined-foreign-funcall-mode
@@ -87,6 +86,143 @@
 	     collect
 	     (parse-isl-ast backend child kernel outermost-p))
        kernel))))
+
+(defun replace-body-with-new-ids (body new-ids)
+  (flet ((shuffle-helper (aref)
+	   (map-tree
+	    #'(lambda (form)
+		(if (or (symbolp form)
+			(keywordp form))
+		    (or (gethash form new-ids)
+			form)
+		    form))
+	    aref)))
+    (trivia:ematch body
+      ;; (setf (aref X ...) scalar)
+      ((list
+	(or 'setf 'incf 'decf 'mulcf 'divcf)
+	(list* 'aref (or (type symbol) (type keyword)) _)
+	(or (type symbol) (type number)))
+       (let ((aref (shuffle-helper (second body)))
+	     (new-expr (copy-list body)))
+	 (setf (second new-expr) aref)
+	 new-expr))
+      ;; (setf (aref X ...) (aref X ...)
+      ((list
+	(or 'setf 'incf 'decf 'mulcf 'divcf)
+	(list* 'aref (or (type symbol) (type keyword)) _)
+	(list* 'aref (or (type symbol) (type keyword)) _))
+       (let ((aref (shuffle-helper (second body)))
+	     (arg  (shuffle-helper (third  body))))
+	 `(,(car body)
+	   ,aref
+	   ,arg)))	
+      ;; ((or setf incf decf mulcf divcf) (aref X ...) (op ...)
+      ((list
+	(or 'setf 'incf 'decf 'mulcf 'divcf)
+	(list* 'aref (or (type symbol) (type keyword)) _)
+	(list* (type symbol) _))
+       (let ((aref (shuffle-helper (second body)))
+	     (args (map 'list #'shuffle-helper (cdr (third body)))))
+	 `(,(car body)
+	   ,aref
+	   (,(car (third body)) ,@args)))))))
+
+(defun parse-isl-ast-user (backend ex kernel)
+  (declare (type foreign-pointer ex)
+	   (type kernel kernel)
+	   (type keyword backend))
+  (with-inlined-foreign-funcall-mode
+    (let ((expr (%"isl_ast_node_user_get_expr":pointer :pointer ex)))
+      (%"isl_ast_expr_free":void :pointer expr)
+      (let* ((first-expr (%"isl_ast_expr_op_get_arg":pointer :pointer expr :int 0))
+	     (n          (%"isl_ast_expr_get_op_n_arg":int   :pointer expr))
+	     (id         (prog1
+			     (%"isl_ast_expr_id_get_id":pointer :pointer first-expr)
+			   (%"isl_ast_expr_free":void :pointer first-expr)))
+	     (name       (prog1
+			     (%"isl_id_get_name":string :pointer id)
+			   (%"isl_id_free":void :pointer id))))
+	(loop for instruction across (kernel-instructions kernel)
+	      if (string= (format nil "~(~a~)" (inst-op instruction)) (string-downcase name)) do
+		(let ((old-ids
+			(loop for domain across (kernel-domains kernel)
+			      append
+			      (loop for iname in (inst-depends-on instruction)
+				    if (eql iname (domain-subscript domain))
+				      collect iname)))
+		      (new-ids (make-hash-table :test #'eql)))
+		  (loop for i upfrom 1  below n
+			for old-id   in old-ids
+			for arg = (parse-isl-expr
+				   backend
+				   (%"isl_ast_expr_op_get_arg":pointer :pointer expr :int i)
+				   kernel)
+			do (setf (gethash old-id new-ids) arg))
+		  ;;(maphash
+		  ;; #'(lambda (k v)
+		  ;;     (format t "~a -> ~a ~%" k v))
+		  ;; new-ids)
+		  (let ((replaced-body
+			  (replace-body-with-new-ids (inst-body instruction) new-ids)))
+		    ;; (setf (aref X ...) scalar)
+		    (return-from
+		     parse-isl-ast-user
+		      (trivia:ematch replaced-body
+			((list
+			  (or 'setf 'incf 'decf 'mulcf 'divcf)
+			  (list* 'aref (or (type symbol) (type keyword)) _)
+			  (or (type symbol) (type number)))
+			 (let* ((callexpr (intern (symbol-name (first replaced-body)) "KEYWORD"))
+				(target   (second replaced-body))
+				(target-buffer (find-if #'(lambda (x) (eql x (second target))) (kernel-args kernel) :key #'buffer-name))
+				(source   (third  replaced-body)))
+			   (codegen-write-set-scalar
+			    backend
+			    callexpr
+			    replaced-body
+			    target-buffer
+			    source
+			    kernel)))
+			;; (setf (aref X ...) (aref X ...)
+			((list
+			  (or 'setf 'incf 'decf 'mulcf 'divcf)
+			  (list* 'aref (or (type symbol) (type keyword)) _)
+			  (list* 'aref (or (type symbol) (type keyword)) _))
+			 (let* ((callexpr (intern (symbol-name (first replaced-body)) "KEYWORD"))
+				(target   (second replaced-body))
+				(target-buffer (find-if #'(lambda (x) (eql x (second target))) (kernel-args kernel) :key #'buffer-name))
+				(source   (third replaced-body))
+				(source-buffer (find-if #'(lambda (x) (eql x (second source))) (kernel-args kernel) :key #'buffer-name)))
+			   (codegen-write-array-move
+			    backend
+			    callexpr
+			    replaced-body
+			    target-buffer
+			    source-buffer
+			    kernel)))
+			;; ((or setf incf decf mulcf divcf) (aref X ...) (op ...)
+			((list
+			  (or 'setf 'incf 'decf 'mulcf 'divcf)
+			  (list* 'aref (or (type symbol) (type keyword)) _)
+			  (list* (type symbol) _))
+			 (let* ((callexpr (intern (symbol-name (first replaced-body)) "KEYWORD"))
+				(target   (second replaced-body))
+				(target-buffer (find-if #'(lambda (x) (eql x (second target))) (kernel-args kernel) :key #'buffer-name))
+				(sources  (cdr (third replaced-body)))
+				(source-buffers (loop for src in sources
+						      if (and (listp src) (eql (car src) 'aref))
+							collect
+							(find-if #'(lambda (x) (eql x (second src))) (kernel-args kernel) :key #'buffer-name)
+						      else
+							collect src)))
+			   (codegen-write-instruction
+			    backend
+			    callexpr
+			    replaced-body
+			    target-buffer
+			    source-buffers
+			    kernel))))))))))))
 
 (defun parse-isl-expr (backend ast kernel &key (determine-upper-bound-p nil))
   (declare (type foreign-pointer ast))

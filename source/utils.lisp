@@ -20,6 +20,14 @@
 	   split-with))
       sequences)))))
 
+(defun map-tree (fn tree)
+  (let ((tree (funcall fn tree)))
+    (if (listp tree)
+        (mapcar (lambda (subtree)
+                  (map-tree fn subtree))
+                tree)
+        tree)))
+
 (declaim (inline unique-identifier))
 (defun unique-identifier ()
   (string-downcase (gensym "id")))

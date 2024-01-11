@@ -32,8 +32,7 @@
 	(member
 	 :and :or :max :min
 	 :+ :- :* :/ :floor-div-cast-to-int :%
-	 :equal :< :> :<= :>=
-	 )))
+	 :equal :< :> :<= :>=)))
 
 (defgeneric codegen-write-binary-op (backend op lhs rhs kernel)
   (:documentation
@@ -122,4 +121,105 @@ instructions = list")
 	(format out "~a~%" i))
       (format out ")"))))
 
-	      
+(defun codegen-write-index-ref (backend access-list buffer kernel)
+  "A helper function to render the strided index reference"
+  (codegen-write-expr
+   backend
+   `("+"
+     ,@(loop for ref-of in access-list
+	     for stride in (buffer-strides buffer)
+	     for ref = (codegen-write-expr backend `("*" ,ref-of ,stride) kernel)
+	     collect ref))
+   kernel))
+
+(defun codegen-write-expr (backend expr kernel)
+  "A helper function to write a expr"
+  (trivia:ematch expr
+    ((type list)
+     (flet ((helper (x y)
+	      (codegen-write-binary-op
+	       backend
+	       (intern (format nil "~a" (car expr)) "KEYWORD")
+	       (codegen-write-expr backend x kernel)
+	       (codegen-write-expr backend y kernel)
+	       kernel)))
+       (reduce #'helper (cdr expr))))
+    ((type string) expr)
+    ((type symbol) (codegen-write-id backend expr kernel))
+    ((type number) (codegen-write-num backend expr kernel))))  
+
+;; TODO codegen-write-index-ref
+(defgeneric codegen-write-set-scalar (backend callexpr body target-buffer source kernel)
+  (:documentation "Writes an instruction expressed as:
+`target[index] = source`
+
+- callexpr[keyword] one of :setf :incf :decf :mulcf :divcf, represents =, +=, -=, *=, /= respectively.
+
+- body[list] a list of (setf (aref :X c0 c1 c2...) scalar)
+
+- target-buffer[Buffer] coressponding buffer
+
+- source[number or symbol] a scalar object to write with
+
+- kernel[Kernel] corresponding kernel
+")
+  (:method ((backend (eql :lisp)) callexpr body target-buffer source kernel)
+    (format nil "(~a (aref ~a ~a) ~a)"
+	    callexpr
+	    (buffer-name target-buffer)
+	    (codegen-write-index-ref backend (cddr (second body)) target-buffer kernel)
+	    source)))
+
+(defgeneric codegen-write-array-move (backend callexpr body target-buffer source-buffer kernel)
+  (:documentation "Writes an instruction expressed as:
+`target[index] = source[index]`
+
+- callexpr[keyword] one of :setf :incf :decf :mulcf :divcf, represents =, +=, -=, *=, /= respectively.
+
+- body[list] a list of original ast, i.e.: (setf (aref :X c0 c1 c2...) (aref :Y c0 c1 c2..))
+
+- target-buffer[Buffer] coressponding buffer
+
+- source-buffer[Buffer] corresponding buffer
+
+- kernel[Kernel] corresponding kernel
+")
+  (:method ((backend (eql :lisp)) callexpr body target-buffer source-buffer kernel)
+    (format nil "(~a (aref ~a ~a) (aref ~a ~a))"
+	    callexpr
+	    (buffer-name target-buffer)
+	    (codegen-write-index-ref backend (cddr (second body)) target-buffer kernel)
+	    (buffer-name source-buffer)
+	    (codegen-write-index-ref backend (cddr (third body))  source-buffer kernel))))
+
+(defgeneric codegen-write-instruction (backend callexpr body target-buffer source-buffers kernel)
+  (:documentation "Writes an instruction expressed as:
+`target[index] = OP(source_1[index_1], source_2[index_2], ...)`
+
+- callexpr[keyword] one of :setf :incf :decf :mulcf :divcf, represents =, +=, -=, *=, /= respectively.
+
+- body[list] a list of original ast, i.e.: (setf (aref :X c0 c1 c2...) (op (aref :Y c0 c1 c2..) (aref :Z c0 c1 c2 ..)))
+
+- target-buffer[Buffer] coressponding buffer
+
+- source-buffers[List] a list consisted of: Buffer (->aref) , Symbol (->integer), Number.
+
+- kernel[Kernel] corresponding kernel
+")
+  (:method ((backend (eql :lisp)) callexpr body target-buffer source-buffers kernel)
+    (format nil "(~a (aref ~a ~a) (~a ~a))"
+	    callexpr
+	    (buffer-name target-buffer)
+	    (codegen-write-index-ref backend (cddr (second body)) target-buffer kernel)
+	    (car (third body))
+	    (with-output-to-string (out)
+	      (loop for aref in (cdr (third body))
+		    for buffer in source-buffers
+		      if (buffer-p buffer) do
+			(format out "(aref ~a ~a) "
+				(buffer-name buffer)
+				(codegen-write-index-ref backend (cddr aref) buffer kernel))
+		    else do
+		      (format out "~a" (codegen-write-expr backend buffer kernel)))))))
+
+

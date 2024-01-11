@@ -13,6 +13,9 @@ Indicates the level of logging. 0 or 1 or 2
 ;;  - Tiling (4 x 4?) Autotuning
 ;;  - SIMDify
 ;;  - Loop Collapse (If strides are nothing)
+;; TODO:
+;;  - Allowing incf/decf/mulcf/divcf
+;;  - Reduce, 0 accessing <- it should be shuffled together!
 
 (defun run-polyhedral
     (kernel
@@ -228,7 +231,7 @@ Does the following:
 			    (format t "~%Final C Code(verbose=2): ~%~a~%" s)))
 
 			;; Genearing a code based on the backend.
-			(print (parse-isl-ast backend ast kernel parallel))))))))))))))
+			(print (read-from-string (parse-isl-ast backend ast kernel parallel)))))))))))))))
 
 ;; Running example
 ;; TODO: OpFusion Scheduling...
@@ -276,7 +279,8 @@ Does the following:
    `(for (i 100)
 	 (for (j 0 256)
 	      (for (k 0 512)
-		   (setf (aref :Z i k) (incfmul (aref :X i j) (aref :Y j k) (aref :Z i k)))))))
+		   ;; TODO: setf -> incf
+		   (setf (aref :Z i k) (mul (aref :X i j) (aref :Y j k) (aref :Z i k)))))))
   :verbose 3
   :tile t))
 
@@ -345,4 +349,3 @@ Does the following:
 					 (setf (aref :OUT n fout y x) (affine (aref :OUT n fout y x) (aref :W fout fin y x) (aref :X n fin (+ y k0) (+ x k1))))))))))))
     :verbose 2
     :tile t)))
-
