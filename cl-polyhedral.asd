@@ -27,7 +27,8 @@
   :components
   ((:file "test/package")
    (:file "test/dsl")
-   (:file "test/benchmark"))
+   (:file "test/benchmark")
+   (:file "test/gemm"))
   :perform
   (asdf:test-op (o s)
 		(uiop:symbol-call (find-package :rove) :run :cl-polyhedral/test)))
