@@ -23,7 +23,7 @@
   :description ""
   :author      "hikettei <ichndm@gmail.com>"
   :licence     "MIT"
-  :depends-on (#:cl-polyhedral #:rove #:numcl)
+  :depends-on (#:cl-polyhedral #:rove #:numcl #:cl-ansi-text)
   :components
   ((:file "test/package")
    (:file "test/dsl")

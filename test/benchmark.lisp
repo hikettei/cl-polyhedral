@@ -1,6 +1,9 @@
 
 (in-package :cl-polyhedral/test)
 
+;; ~~ Utils ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+;; TODO: Supress numcl:array printing when error is occured!
+
 (defmacro benchmark (n &body body)
   (alexandria:with-gensyms (t1 t2 i)
     `(let ((,t1 (get-internal-real-time)))
@@ -14,22 +17,32 @@
 
 (defun compare-results (error-rate allow-mse-error-rate naive-time total-time iters n-flop)
   (let* ((accuracy-p  (<= error-rate allow-mse-error-rate))
-	 (improved-p (<= total-time naive-time)))
+	 (improved-p (<= total-time naive-time))
+	 (format-error-rate
+	   (if accuracy-p
+	       #'cl-ansi-text:cyan
+	       #'cl-ansi-text:magenta))
+	 (format-speed
+	   (if improved-p
+	       #'cl-ansi-text:cyan
+	       #'cl-ansi-text:magenta)))
+	 
 
     (format
      t
-     "        error=~a (~a) | time=~a (vs naive, ~a~a(s)) | ~a GFlops/N (~a% up)"
-     error-rate
-     accuracy-p
-     total-time
-     (if improved-p
-	 "fast: -"
-	 "slow: +")
-     (abs (- naive-time total-time))
+     "        | ~a~a | ~a(s) (~a~a(s)) | ~a GFlops | ~a"
+     (format nil "error=~a" error-rate)
+     (funcall format-error-rate (if accuracy-p "(ok)" "(ng)"))
+     (format nil "time=~a" total-time)
+     (funcall format-speed
+	      (if improved-p
+		  "improve↑: -"
+		  "degrade↓: +"))
+     (format nil "~a" (abs (- naive-time total-time)))
      (float
-      (/ (* (apply #'* iters) n-flop))
+      (/ (* (apply #'* iters) n-flop total-time)) ;; Flops -> GFlops
       1.0e10)
-     (float naive-time total-time))
+     (funcall format-speed (format nil "~a%" (* 100 (float (/ naive-time total-time))))))
     (unless accuracy-p (return-from compare-results :incorrect))
     (unless improved-p (return-from compare-results :get-slower))
     :improved))
@@ -114,7 +127,7 @@
 				(ok (eql result :improved))))))))))))))
 
 
-;; ~~ Utils ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+;; ~~ Utils (Random Generators) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 (defun make-random-initializer (&rest shapes)
   #'(lambda ()
@@ -204,11 +217,11 @@
     (0 gemm-8x8-lisp-optimized 2)
     (0 gemm-8x8-numcl          2))
 
-;;(define-bench (gemm-256x256 (256 256 256) :allow-mse-error 0 :n 1)
-;;	      (make-random-initializer `(256 256) `(256 256) `(256 256))
-;;    (0 gemm-256x256-lisp-naive     2)
-;;    (1 gemm-256x256-lisp-poly      2)
-;;    (1 gemm-256x256-lisp-optimized 2)
-;;    (0 gemm-256x256-numcl          2))
+(define-bench (gemm-256x256 (256 256 256) :allow-mse-error 0 :n 10)
+	      (make-random-initializer `(256 256) `(256 256) `(256 256))
+    (0 gemm-256x256-lisp-naive     2)
+    (1 gemm-256x256-lisp-poly      2)
+    (0 gemm-256x256-lisp-optimized 2)
+    (0 gemm-256x256-numcl          2))
 
 
