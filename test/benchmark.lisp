@@ -58,28 +58,44 @@
 	     (1 (numcl:asarray Y)))))
     ;; Supress numcl style-warning
     #+sbcl(declare (sb-ext:muffle-conditions cl:style-warning))
+;;    (print X)
+;;    (print Y)
     (numcl:mean (numcl:- X Y))))
 
-(defmacro define-bench ((name n-iters &key (allow-mse-error 1e-5) (n 10)) initializer (use-nth naive-impl n-flop) &rest test-pair)
+(defun copy-helper (use-nth X)
+  (ecase use-nth
+    (0 (numcl:copy X))
+    (1 (numcl:copy (numcl:asarray X)))))
+
+(defmacro define-bench ((name n-iters &key (allow-mse-error 1e-5) (n 10) (init-nth -1)) initializer (use-nth naive-impl n-flop) &rest test-pair)
   "Defines a pair of benchmarking and accuracy testing.
 - name: the test is named after name
 - allow-mse-error
 - initializer: a lambda function generating array for the testing function, returning ((arg1-array arg1-storage-pointer) (arg2-array arg2-storage-pointer) ...)
+    - initializer reinit: ...
+    - reinit=t, recreates a pair of (arr pointer)
 - use-nth: 0 to use array, 1 to use storage-pointer
 - naive-impl: a lambda function operating a test.
 - test-pair: a pair of (use-nth naive-impl n-flop) but the accuracy is measured between the returned array and naive-impl's one.
+- init-nth: the nth argument is initialized again in each test. (avoiding reduce to produce a wrong result)
 "
   (declare (ignore n-flop))
   (flet ((def-helper (initial-p name use-nth1 func)
-	   (alexandria:with-gensyms (initialized-args compare-to args result error total)
+	   (alexandria:with-gensyms (initialized-args compare-to args result error total tmp nth)
 	     `(defun ,name ,@(if initial-p
 				 `((,initialized-args))
 				 `((,compare-to ,initialized-args)))
 	        ;; Initial-p=T   -> (values result error benchmark-result)
 		;; Initial-p=NIL -> (values result benchmark-result)
 		;; First, measure the accuracy. (to avoid destructive ops)
-		(let* ((,args    (map 'list #'(lambda (arrs) (nth ,use-nth1 arrs)) ,initialized-args))
-		       (,result  (apply #',func ,args))
+		(let* ((,args
+			 (loop for ,tmp in ,initialized-args
+			       for ,nth upfrom 0
+			       if (= ,init-nth ,nth)
+				 collect (nth ,use-nth1 (funcall ,initializer t))
+			       else
+				 collect (nth ,use-nth1 ,tmp)))
+		       (,result  (copy-helper ,use-nth1 (apply #',func ,args)))
 		       ;; MSE Error is measured only after initial computation was finished.
 		       ,@(when (not initial-p)
 			   `((,error   (MSE ,use-nth ,use-nth1 ,compare-to ,result))))
@@ -130,10 +146,16 @@
 ;; ~~ Utils (Random Generators) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 (defun make-random-initializer (&rest shapes)
-  #'(lambda ()
-      (loop for shape in shapes
-	    collect
-	    (multiple-value-list (numcl:uniform -3.0 3.0 shape 'single-float)))))
+  #'(lambda (&optional recall)
+      (if recall
+	  (multiple-value-list (numcl:zeros (car (last shapes)) :type 'single-float))
+	  (loop for shape in shapes
+		for nth upfrom 0
+		if (= nth 2)
+		  collect (multiple-value-list (numcl:zeros shape :type 'single-float))
+		else
+		  collect
+		  (multiple-value-list (numcl:uniform -3.0 3.0 shape 'single-float))))))
 
 (setf lparallel:*kernel* (lparallel:make-kernel (cl-cpus:get-number-of-processors)))
 
@@ -170,11 +192,11 @@
   (numcl:matmul X Y Z)
   Z)
 
-(define-bench (gemm-8x8 (8 8 8) :allow-mse-error 0 :n 1)
+(define-bench (gemm-8x8 (8 8 8) :allow-mse-error 0 :n 10000 :init-nth 2)
 	      (make-random-initializer `(8 8) `(8 8) `(8 8))
     (0 gemm-8x8-lisp-naive     2)
     (1 gemm-8x8-lisp-poly      2)
-    (1 gemm-8x8-lisp-optimized 2)
+    (0 gemm-8x8-lisp-optimized 2)
     (0 gemm-8x8-numcl          2))
 
 ;; ~~ Gemm 256x256 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -210,14 +232,7 @@
   (numcl:matmul X Y Z)
   Z)
 
-(define-bench (gemm-8x8 (8 8 8) :allow-mse-error 0 :n 1000)
-	      (make-random-initializer `(8 8) `(8 8) `(8 8))
-    (0 gemm-8x8-lisp-naive     2)
-    (1 gemm-8x8-lisp-poly      2)
-    (0 gemm-8x8-lisp-optimized 2)
-    (0 gemm-8x8-numcl          2))
-
-(define-bench (gemm-256x256 (256 256 256) :allow-mse-error 0 :n 10)
+(define-bench (gemm-256x256 (256 256 256) :allow-mse-error 0 :n 10 :init-nth 2)
 	      (make-random-initializer `(256 256) `(256 256) `(256 256))
     (0 gemm-256x256-lisp-naive     2)
     (1 gemm-256x256-lisp-poly      2)
