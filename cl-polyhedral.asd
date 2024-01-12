@@ -3,18 +3,19 @@
   :author      "hikettei <ichndm@gmail.com>"
   :licence     "MIT"
   :depends-on (#:mgl-pax #:cffi #:cffi-libffi #:alexandria #:trivia #:cl-ppcre #:cl-cpus #:lparallel)
+  :serial t
   :components
   ((:file "source/package")
    (:file "source/graph")
    (:file "source/graph-constructor")
+   (:file "source/codegen")
    (:file "source/isl")
    (:file "source/hwloc")
    (:file "source/utils")
    (:file "source/tiling")
    (:file "source/memory-locality")
    (:file "source/ast")
-   (:file "source/polyhedral")
-   (:file "source/codegen"))
+   (:file "source/polyhedral"))
   :in-order-to
   ((test-op (asdf:test-op cl-polyhedral/test))))    
 

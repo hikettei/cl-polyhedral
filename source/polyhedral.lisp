@@ -23,6 +23,8 @@ Indicates the level of logging. 0 or 1 or 2
 ;;  - Reduction
 ;;  - Add: Config
 ;;  - GraphWriter
+;;  - Implement: Cache by the dynamic shape
+;;  - Add a new syntax: dotimes
 
 (defun run-polyhedral
     (kernel
@@ -251,7 +253,7 @@ Does the following:
 
 ;; Running example
 ;; TODO: OpFusion Scheduling...
-#+(and)
+#+(or)
 (run-polyhedral
  (make-kernel-from-dsl
   (list
@@ -269,7 +271,7 @@ Does the following:
  :verbose 3)
 
 ;; Reduce Sum
-#+(and)
+#+(or)
 (run-polyhedral
  (make-kernel-from-dsl
   (list
@@ -284,7 +286,7 @@ Does the following:
  :verbose 3)
 
 ;; Gemm
-#+(and)
+#+(or)
 (time
  (run-polyhedral
   (make-kernel-from-dsl
@@ -301,7 +303,7 @@ Does the following:
   :tile t))
 
 ;; Gemm (Z=0)
-#+(and)
+#+(or)
 (time
  (run-polyhedral
   (make-kernel-from-dsl
@@ -316,7 +318,7 @@ Does the following:
   :verbose 3))
 
 ;; Permute
-#+(and)
+#+(or)
 (time
  (run-polyhedral
   (make-kernel-from-dsl
@@ -344,7 +346,7 @@ Does the following:
 ;;for (k1 in 0..3)
 ;;conv[n, fout, y, x] += weigths[fout, fin, y, x] * input[n, fin, y+k0, x+k1];
 
-#+(and)
+#+(or)
 (multiple-value-bind (N img-x img-y in-features out-features k-x k-y)
     (values 10 128 128 32 32 25 25)
   (time
