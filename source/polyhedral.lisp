@@ -10,12 +10,19 @@ Indicates the level of logging. 0 or 1 or 2
 3 -> Displays all progresses")
 
 ;; TODO:
-;;  - Tiling (4 x 4?) Autotuning
 ;;  - SIMDify
 ;;  - Loop Collapse (If strides are nothing)
 ;; TODO:
 ;;  - Allowing incf/decf/mulcf/divcf
 ;;  - Reduce, 0 accessing <- it should be shuffled together!
+;; TODO:
+;;  - Allowing incf/decf/mulcf/divcf
+;;  - Testing/Benchmarking
+;;  - fake-simd-pack-unpack (:fake-lisp backend)
+;;  - Loop Collapse/Fusion
+;;  - Reduction
+;;  - Add: Config
+;;  - GraphWriter
 
 (defun run-polyhedral
     (kernel
@@ -76,7 +83,7 @@ Does the following:
 		 "isl_schedule_dump"
 		 :pointer schedule
 		 :void))
-		
+	      
 	      
 	      (with-verbose-level (2)
 		;; Displaying The Original C Code
@@ -273,7 +280,7 @@ Does the following:
 	     (setf (aref :Y i j) 0.0)))
   `(for (i 0 10)
 	(for (j 0 10)
-	     (setf (aref :Y i j) (add (aref :Y i j) (aref :X i j))))))
+	     (setf (aref :Y i j) (+ (aref :Y i j) (aref :X i j))))))
  :verbose 3)
 
 ;; Gemm
@@ -289,7 +296,7 @@ Does the following:
 	 (for (j 0 256)
 	      (for (k 0 512)
 		   ;; TODO: setf -> incf
-		   (setf (aref :Z i k) (mul (aref :X i j) (aref :Y j k) (aref :Z i k)))))))
+		   (setf (aref :Z i k) (* (aref :X i j) (aref :Y j k) (aref :Z i k)))))))
   :verbose 3
   :tile t))
 
@@ -305,7 +312,7 @@ Does the following:
    `(for (i 10)
 	 (for (j 0 10)
 	      (for (k 0 10)
-		   (incf (aref :Z i k) (mul (aref :X i j) (aref :Y j k)))))))
+		   (incf (aref :Z i k) (* (aref :X i j) (aref :Y j k)))))))
   :verbose 3))
 
 ;; Permute
@@ -355,7 +362,7 @@ Does the following:
 			       (for (k0 ,k-x)
 				    (for (k1 ,k-y)
 					 ;; C = C + A*B 
-					 (setf (aref :OUT n fout y x) (affine (aref :OUT n fout y x) (aref :W fout fin y x) (aref :X n fin (+ y k0) (+ x k1))))))))))))
+					 (incf (aref :OUT n fout y x) (* (aref :W fout fin y x) (aref :X n fin (+ y k0) (+ x k1))))))))))))
     :verbose 2
     :tile t)))
 

@@ -102,6 +102,14 @@ TODO
 		nil)
 	       (_
 		(error "make-kernel-from-dsl: Detected Illegal Syntax:~%~a.~%Expression is consisted of:~%- (aref id ...)~%- (op arg1 arg2 ...)" expr))))
+	   (intern-helper (form &aux (*package* (find-package :cl-polyhedral)))
+	     (map-tree
+	      #'(lambda (x)
+		  (typecase x
+		    (keyword x)
+		    (symbol (intern (symbol-name x)))
+		    (T      x)))
+	      form))
 	   (helper (expr &optional (conditioned nil) (parent-doms nil))
 	     (declare (type list conditioned))
 	     (trivia:ematch expr
@@ -226,30 +234,39 @@ TODO
 		;; Interpreted as an operation.
 		;; operation is a form defined as:
 		;; (setf (aref target id1 id2) (op-function arg1 arg2 arg3... ))
-		(let ((inst
-			(make-instruction
-			 (car op-function)
-			 expr
-			 (list 'aref target-id target-subscripts)
-			 (to-array
-			  'Expr
-			  (map
-			   'list
-			   #'(lambda (arg-form)
-			       (trivia:ematch arg-form
-				 ((aref-pattern arg-form tgt-id tgt-sub)
-				  (list 'aref tgt-id tgt-sub))
-				 ((type number)
-				  arg-form)))
-			   (cdr (third expr))))
-			 (remove-duplicates
-			  (map 'list #'domain-subscript parent-doms))
-			 conditioned)))
+
+		;; Temporary rewriting `car` in a form which is legal in the ISL
+		(let* ((op-function `(,(case (car op-function)
+					 (+ 'add)
+					 (- 'sub)
+					 (* 'mul)
+					 (/ 'div)
+					 (t (car op-function)))
+				      ,@(cdr op-function)))
+		       (inst
+			 (make-instruction
+			  (car op-function)
+			  expr
+			  (list 'aref target-id target-subscripts)
+			  (to-array
+			   'Expr
+			   (map
+			    'list
+			    #'(lambda (arg-form)
+				(trivia:ematch arg-form
+				  ((aref-pattern arg-form tgt-id tgt-sub)
+				   (list 'aref tgt-id tgt-sub))
+				  ((type number)
+				   arg-form)))
+			    (cdr (third expr))))
+			  (remove-duplicates
+			   (map 'list #'domain-subscript parent-doms))
+			  conditioned)))
 		  (push inst instructions)
-		  inst))	       
+		  inst))
 	       (_
 		(error "make-kernel-from-dsl: Detected Illegal Syntax:~%    ~a~%Expected one of:~%    - (when condition &body body)~%    - (for (bind from to expr) &body body)~%    - (place_expr arg_t (op arg_s1 arg_s2 ...))~%    - arg_t := (aref tensor-name &rest subscripts)~%    - place_exor := setf | incf | decf | mulcf | divcf" expr)))))
-    (mapc #'helper body)
+    (mapc (alexandria:compose #'helper #'intern-helper) body)
     
     (make-kernel
      (to-array 'Instruction (remove-duplicates instructions))
