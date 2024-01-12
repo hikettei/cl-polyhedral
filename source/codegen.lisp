@@ -100,7 +100,14 @@ where both of lhs, rhs are the type of string indicating an integer.
 	(format nil "(let ((~a 0)) ~a)" name body)
 	(format nil "(~a (~a (- ~a ~a)) (let ((~a (+ (* ~a ~a) ~a))) ~a))"
 		(if outermost-p
-		    "lparallel:pdotimes"
+		    (if (let* ((from (read-from-string from))
+			       (to   (read-from-string to)))
+			  (and
+			   (numberp from)
+			   (numberp to)
+			   (> (abs (- from to)) 1024)))			       
+			"lparallel:pdotimes"
+			"dotimes")
 		    "dotimes")
 		name
 		to from
@@ -232,6 +239,7 @@ instructions = list")
 (defun (gensym) (args...)
     body)")
   (:method ((backend (eql :lisp)) body kernel)
+    ;; TODO: (macrolet ((mulcf ...) (divcf ...))
     (format nil "(lambda (~a) (declare (optimize (speed 3))) ~a)"
 	    (with-output-to-string (out)
 	      (loop for arg across (kernel-args kernel) do

@@ -25,6 +25,9 @@ Indicates the level of logging. 0 or 1 or 2
 ;;  - GraphWriter
 ;;  - Implement: Cache by the dynamic shape
 ;;  - Add a new syntax: dotimes
+;;  - Add: GCC backend
+;;  - Opt: Lisp Backend
+;;  - VS:  OpenBLAS
 
 (defun run-polyhedral
     (kernel
