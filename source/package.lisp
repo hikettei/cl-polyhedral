@@ -25,9 +25,11 @@
 
   ;; Configs
   (:export
+   #:*indent-level*
    #:*default-config*
    #:Config
-   #:Config-of
+   #:config-of
+   #:config-ls
    #:declare-config)
   
   (:export
@@ -40,9 +42,16 @@
 
   ;; TODO: Graph Structures, Kernel Representations
   (:export
+   #:Buffer
+   #:Buffer-name
+   #:Buffer-shape
+   #:Buffer-strides
+   #:Buffer-dtype
+   #:buffer-n-byte
+   #:buffer-io)
+  (:export
    #:Instruction
    #:Domain
-   #:Buffer
    #:Kernel))
 
 (in-package :cl-polyhedral)

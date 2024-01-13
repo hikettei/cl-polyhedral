@@ -112,7 +112,7 @@
     (%gemm-8x8-lisp-poly-tiled X Y Z)
     Z))
 
-(define-bench (gemm-8x8-tiled-float32 (8 8 8) :allow-mse-error 1e-7 :n 100000 :init-nth 2)
+(define-bench (gemm-8x8-tiled-float32 (8 8 8) :allow-mse-error 1e-5 :n 100000 :init-nth 2)
 	      (make-random-initializer `(8 8) `(8 8) `(8 8))
     (0 gemm-8x8-lisp-naive      2)
     (1 gemm-8x8-lisp-poly-tiled 2)

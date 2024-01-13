@@ -60,6 +60,8 @@ TODO
 
   (labels ((to-array (type x)
 	     (make-array `(,(length x)) :initial-contents x :element-type type))
+	   (update-io-helper (tgt-id in-or-out)
+	     (update-io! (find tgt-id buffers :key #'buffer-name) in-or-out))
 	   (expr-depends-on (expr)
 	     ;; Extracts Expr -> (values expr symbols-depending-on)
 	     ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -220,6 +222,9 @@ TODO
 			 (remove-duplicates
 			  (map 'list #'domain-subscript parent-doms))
 			 conditioned)))
+		  (update-io-helper target-id :out)
+		  (when (listp tgt) ;; src = (aref ...)
+		    (update-io-helper (second tgt) :in))		      
 		  (push inst instructions)
 		  inst))
 	       ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -255,6 +260,7 @@ TODO
 			    #'(lambda (arg-form)
 				(trivia:ematch arg-form
 				  ((aref-pattern arg-form tgt-id tgt-sub)
+				   (update-io-helper tgt-id :in)
 				   (list 'aref tgt-id tgt-sub))
 				  ((type number)
 				   arg-form)))
@@ -262,11 +268,20 @@ TODO
 			  (remove-duplicates
 			   (map 'list #'domain-subscript parent-doms))
 			  conditioned)))
+		  (update-io-helper target-id :out)
 		  (push inst instructions)
 		  inst))
 	       (_
 		(error "make-kernel-from-dsl: Detected Illegal Syntax:~%    ~a~%Expected one of:~%    - (when condition &body body)~%    - (for (bind from to expr) &body body)~%    - (place_expr arg_t (op arg_s1 arg_s2 ...))~%    - arg_t := (aref tensor-name &rest subscripts)~%    - place_exor := setf | incf | decf | mulcf | divcf" expr)))))
     (mapc (alexandria:compose #'helper #'intern-helper) body)
+
+    ;; Checking unused vars
+    (mapc
+     #'(lambda (buffer)
+	 (when (eql (buffer-io buffer) :not-traced)
+	   (warn "make-kernel-from-dsl: the buffer ~a is declared but not used." (buffer-name buffer))
+	   (setf (buffer-io buffer) :io)))
+     buffers)
     
     (make-kernel
      (to-array 'Instruction (remove-duplicates instructions))
@@ -354,7 +369,7 @@ TODO
 
 ;; Example
 #+(or)
-(print
+(time
  (make-kernel-from-dsl
   (list
    (make-buffer :X `(10 10) :FLOAT)
@@ -364,3 +379,4 @@ TODO
 	(for (j 0 10)
 	     (for (k 0 10)
 		  (setf (aref :Z i k) (mulf (aref :X i j) (aref :Y j k) (aref :Z i k))))))))
+

@@ -30,7 +30,7 @@
 
     (format
      t
-     "        | ~a~a | ~a(s) (~a~a(s)) | ~a GFlops | ~a"
+     "        L ~a~a | ~a(s) (~a~a(s)) | ~a GFlops | ~a"
      (format nil "error=~a" error-rate)
      (funcall format-error-rate (if accuracy-p "(ok)" "(ng)"))
      (format nil "time=~a" total-time)

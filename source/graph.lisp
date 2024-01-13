@@ -29,12 +29,41 @@
 					 (strides (funcall (select-memory-order order) shape))
 					 (n-byte  (foreign-type-size element-cffi-type)))))
   "Represents an array in the kernel.
+- name: a name of buffer
+- shape:
+- strides:
+- dtype:
+- n-byte
+- io: one of :not-traced :in :out :io
 "
   (name name   :type Variable-T)
   (shape shape :type list)
   (strides strides :type list)
-  (dtype element-cffi-type :type Variable-T)
-  (n-byte n-byte :type fixnum))
+  (dtype   element-cffi-type :type Variable-T)
+  (n-byte  n-byte :type fixnum)
+  (io      :not-traced :type (and keyword (member :not-traced :in :out :io))))
+
+(defun update-io! (buffer in-or-out)
+  "Updates the state of io depending on the in-or-out"
+  (declare (type Buffer buffer)
+	   (type (and keyword (member :in :out)) in-or-out))
+  (setf
+   (buffer-io buffer)
+   (trivia:ematch (list (buffer-io buffer) in-or-out)
+     ((list :not-traced (or :in :out))
+      ;; not-traced -> create a state anyway
+      in-or-out)
+     ((list :io         (or :in :out))
+      ;; io supercedes in/out
+      :io)
+     ((or (list :in :in)
+	  (list :out :out))
+      ;; consistent use of in/out
+      in-or-out)
+     ((or (list :in :out)
+	  (list :out :in))
+      ;; mixed :in and :out
+      :io))))
 
 (defstruct (Instruction
 	    (:conc-name inst-)
@@ -112,21 +141,32 @@ after then:
   - (declare-config kernel :openmp \"Docs\" ...)
   - (config-of kernel :openmp) -> T
 "
+  (backend)
   (configs configs :type list))
 
-(defun declare-config (kernel backend config-keyword description &optional (optional nil) (default nil))
+(defparameter *config-ls-mode* nil)
+(defun declare-config (config config-keyword description &optional (optional nil) (default nil))
   "TODO: Docs"
-  (declare (type kernel kernel)
-	   (type keyword config-keyword backend)
+  (declare (type config config)
+	   (type keyword config-keyword)
 	   (type (or nil string) description))
 
-  (let* ((pair (find config-keyword (config-configs (kernel-config kernel)) :key #'car :test #'eql)))
+  (when *config-ls-mode*
+    (format *config-ls-mode* "  - :~(~a~) -> ~a ~a~%"
+	    config-keyword
+	    description
+	    (if optional
+		(format nil "(Optional, default=~a)" default)
+		(format nil "")))
+    (return-from declare-config))
+
+  (let* ((pair (find config-keyword (config-configs config) :key #'car :test #'eql)))
     (if (null pair)
 	(if optional
-	    (push (cons config-keyword default) (config-configs (kernel-config kernel)))
-	    (error "declare-config: The backend ~a requires ~a as a config:~%~a~%Butgot:~%~a" backend config-keyword description
+	    (push (cons config-keyword default) (config-configs config))
+	    (error "declare-config: The backend ~a requires ~a as a config:~%~a~%Butgot:~%~a" (config-backend config) config-keyword description
 		   (with-output-to-string (out)
-		     (loop for (k . v) in (config-configs (kernel-config kernel)) do
+		     (loop for (k . v) in (config-configs config) do
 		       (format out "~a -> ~a~%" k v)))))
 	T)))
 
@@ -143,4 +183,16 @@ after then:
 	  (with-output-to-string (out)
 	    (loop for (k . v) in (config-configs (kernel-config kernel)) do
 	      (format out "~a -> ~a~%" k v))))))
-		  
+
+
+(defun config-ls (backend &key (stream t))
+  "Describes a list of configuration in the backend"
+  (declare (type keyword backend))
+
+  (format
+   stream
+   "Options for ~a:~%~a"
+   backend
+   (with-output-to-string (*config-ls-mode*)
+     (codegen-check-configs backend (make-config)))))
+

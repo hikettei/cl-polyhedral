@@ -51,9 +51,11 @@ Does the following:
 	   (type fixnum tile-element-n-byte)
 	   (type (integer 0 3) verbose))
 
-  ;; Updates the config with checking whether the contents satisfy the current backends' requirements.
-  (codegen-check-configs backend kernel)
-  (setf (kernel-config kernel) config)
+  ;; Updates and adjusts the config with checking whether the contents satisfy the current backends' requirements.
+  (setf
+   (config-backend config) backend
+   (kernel-config kernel) config)
+  (codegen-check-configs backend config)
   
   (macrolet ((with-verbose-level ((number) &body body) `(when (>= verbose ,number) ,@body)))
     (with-isl-ctx ctx

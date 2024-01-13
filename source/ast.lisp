@@ -1,7 +1,7 @@
 
 (in-package :cl-polyhedral)
 
-(defparameter *indent-level* 0)
+(defparameter *indent-level* 0 "Indicates the level of nesting.")
 (defmacro with-deeper-indent (&body body)
   `(let ((*indent-level* (1+ *indent-level*)))
      ,@body))
@@ -67,7 +67,8 @@
 	(:isl_ast_node_for
 	 (parse-isl-ast-for   backend ex kernel outermost-p))
 	(:isl_ast_node_if
-	 (parse-isl-ast-if    backend ex kernel)
+	 ;;(parse-isl-ast-if    backend ex kernel)
+	 (error "Not implemented: parse-isl-ast-if")
 	 )
 	(:isl_ast_node_block
 	 (parse-isl-ast-block backend ex kernel outermost-p))
@@ -362,6 +363,6 @@
 			  :determine-upper-bound-p t)))
       (codegen-write-for
        backend kernel
-       name from to by body execute-once outermost-p *indent-level*))))
+       name from to by body execute-once outermost-p))))
 
       

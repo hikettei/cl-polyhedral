@@ -75,7 +75,7 @@ where both of lhs, rhs are the type of string indicating an integer.
   (:method ((backend (eql :lisp)) lhs kernel)
     (format nil "(- ~a)" lhs)))
 
-(defgeneric codegen-write-for (backend kernel name from to by body execute-once outermost-p n-indent)
+(defgeneric codegen-write-for (backend kernel name from to by body execute-once outermost-p)
   (:documentation "Writes an iteration
 <- n-indent -> |for(int name=from; name<=to; name+=by) {
                |    body
@@ -87,9 +87,9 @@ where both of lhs, rhs are the type of string indicating an integer.
 
 - execute-once[boolean] Set to T if the body is executed only once.
 ")
-  (:method ((backend (eql :lisp)) kernel name from to by body execute-once outermost-p n-indent)
+  (:method ((backend (eql :lisp)) kernel name from to by body execute-once outermost-p)
     (if execute-once
-	(format nil "(let ((~a 0)) ~a)" name body)
+	(format nil "(let ((~a ~a)) ~a)" name from body)
 	(format nil "(~a (~a (- ~a ~a)) (let ((~a (+ (* ~a ~a) ~a))) ~a))"
 		(if outermost-p
 		    (if (let* ((from (read-from-string from))
@@ -244,9 +244,8 @@ instructions = list")
   (:method ((backend (eql :lisp)) body kernel)
     (eval (read-from-string body))))
 
-(defgeneric codegen-check-configs (backend kernel)
+(defgeneric codegen-check-configs (backend config)
   (:documentation "The method is called once before starting the compilation.")
-  (:method ((backend t) kernel) t)
-  (:method ((backend (eql :lisp)) kernel)
-    ))
+  (:method ((backend t) config) t)
+  (:method ((backend (eql :lisp)) config)))
 
