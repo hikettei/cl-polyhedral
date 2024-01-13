@@ -116,25 +116,37 @@ e.g.: *default-config* = `(:openmp t :fastmath nil ...)")
 	    (:constructor make-config (&rest kv-pairs
 				       &aux
 					 (configs
+					  (loop for i upfrom 0 below (length *default-config*) by 2
+						for k = (nth i *default-config*)
+						for v = (nth (1+ i) *default-config*)
+						collect
+						(cons k v)))
+					 (configs
 					  (progn
 					    (assert
 					     (mod (length kv-pairs) 2)
 					     ()
 					     "make-config: Odd number of arguments ~a.~%Keys and values must correspond one-to-one."
 					     kv-pairs)
-					    (loop for i upfrom 0 below (length kv-pairs) by 2
-						  for key = (nth i kv-pairs)
-						  for val = (nth (1+ i) kv-pairs)
-						  unless (find key *default-config*)
-						    collect
-						    (cons key val)
-						  else
-						    collect
-						    (let ((pos (position key *default-config*)))
-						      (when (not (eql val (nth (1+ pos) *default-config*)))
-							;; Changed
-							(warn "~a=~a was discarded because `*default-config*` supersedes against it. now it is replaced with ~a" key val (nth (1+ pos) *default-config*)))
-						      (cons (nth pos *default-config*) (nth (1+ pos) *default-config*)))))))))
+					    (assert
+					     (mod (length *default-config*) 2)
+					     ()
+					     "make-config: Odd number of *default-config* ~a.~% Keys and values must correspond one-to-one."
+					     *default-config*)
+					    (append
+					     configs
+					     (loop for i upfrom 0 below (length kv-pairs) by 2
+						   for key = (nth i kv-pairs)
+						   for val = (nth (1+ i) kv-pairs)
+						   unless (find key *default-config*)
+						     collect (cons key val)
+						   else
+						     collect
+						     (let ((pos (position key *default-config*)))
+						       (when (not (eql val (nth (1+ pos) *default-config*)))
+							 ;; Changed
+							 (warn "~a=~a was discarded because `*default-config*` supersedes against it. now it is replaced with ~a" key val (nth (1+ pos) *default-config*)))
+						       (cons (nth pos *default-config*) (nth (1+ pos) *default-config*))))))))))
   "Represents a configuration.
 e.g.: (make-config :openmp t)
 after then:

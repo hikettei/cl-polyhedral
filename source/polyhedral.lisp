@@ -254,13 +254,24 @@ Does the following:
 				 backend
 				 (parse-isl-ast backend ast kernel parallel)
 				 kernel)))
-			  (with-verbose-level (3)
+			  (with-verbose-level (2)
 			    (format t "~%Final ~a Code(verbose=2):~%~a~%"
 				    backend body))
-			  (load-optimized-function
-			   backend
-			   body
-			   kernel))))))))))))))
+			  (let ((f (load-optimized-function
+				    backend
+				    body
+				    kernel))
+				(return-nth (loop for arg across (kernel-args kernel)
+						  for nth upfrom 0
+						  if (eql (buffer-io arg) :out)
+						    collect nth)))
+			    (declare (type function f)
+				     (type list return-nth))
+			    #'(lambda (&rest args)
+				(declare (type list args)
+					 (optimize (speed 3)))					 
+				(apply f args)
+				(apply #'values (map 'list #'(lambda (n) (nth n args)) return-nth)))))))))))))))))
 
 ;; Running example
 ;; TODO: OpFusion Scheduling...

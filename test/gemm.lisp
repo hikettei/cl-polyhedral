@@ -4,18 +4,13 @@
 
 ;; ~~ Gemm 8x8 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-(progn
-  (define-poly-func ((%gemm-8x8-lisp-poly :lisp))
-      ((:X `(8 8) :float) (:Y `(8 8) :float) (:Z `(8 8) :float))
-      (:tile nil :verbose 0)
-    (for (i 8)
-	 (for (j 8)
-	      (for (k 8)
-		   (incf (aref :Z i k) (* (aref :X i j) (aref :Y j k)))))))
-
-  (defun gemm-8x8-lisp-poly (X Y Z)
-    (%gemm-8x8-lisp-poly X Y Z)
-    Z))
+(define-poly-func ((gemm-8x8-lisp-poly :lisp))
+    ((:X `(8 8) :float) (:Y `(8 8) :float) (:Z `(8 8) :float))
+    (:tile nil :verbose 0)
+  (for (i 8)
+       (for (j 8)
+	    (for (k 8)
+		 (incf (aref :Z i k) (* (aref :X i j) (aref :Y j k)))))))
 
 (defun gemm-8x8-lisp-naive (X Y Z)
   (dotimes (i 8)
@@ -53,18 +48,13 @@
 
 ;; ~~ Gemm 256x256 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-(progn
-  (define-poly-func ((%gemm-256x256-lisp-poly :lisp))
-      ((:X `(256 256) :float) (:Y `(256 256) :float) (:Z `(256 256) :float))
-      (:tile nil :verbose 0)
-    (for (i 256)
-	 (for (j 256)
-	      (for (k 256)
-		   (incf (aref :Z i k) (* (aref :X i j) (aref :Y j k)))))))
-
-  (defun gemm-256x256-lisp-poly (X Y Z)
-    (%gemm-256x256-lisp-poly X Y Z)
-    Z))
+(define-poly-func ((gemm-256x256-lisp-poly :lisp))
+    ((:X `(256 256) :float) (:Y `(256 256) :float) (:Z `(256 256) :float))
+    (:tile nil :verbose 0)
+  (for (i 256)
+       (for (j 256)
+	    (for (k 256)
+		 (incf (aref :Z i k) (* (aref :X i j) (aref :Y j k)))))))
 
 (defun gemm-256x256-lisp-naive (X Y Z)
   (dotimes (i 256)
@@ -99,18 +89,13 @@
 
 ;; ~~ Gemm 8x8 (Tiled) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-(progn
-  (define-poly-func ((%gemm-8x8-lisp-poly-tiled :lisp))
-      ((:X `(8 8) :float) (:Y `(8 8) :float) (:Z `(8 8) :float))
-      (:tile t :verbose 0)
-    (for (i 8)
-	 (for (j 8)
-	      (for (k 8)
-		   (incf (aref :Z i k) (* (aref :X i j) (aref :Y j k)))))))
-
-  (defun gemm-8x8-lisp-poly-tiled (X Y Z)
-    (%gemm-8x8-lisp-poly-tiled X Y Z)
-    Z))
+(define-poly-func ((gemm-8x8-lisp-poly-tiled :lisp))
+    ((:X `(8 8) :float) (:Y `(8 8) :float) (:Z `(8 8) :float))
+    (:tile t :verbose 0)
+  (for (i 8)
+       (for (j 8)
+	    (for (k 8)
+		 (incf (aref :Z i k) (* (aref :X i j) (aref :Y j k)))))))
 
 (define-bench (gemm-8x8-tiled-float32 (8 8 8) :allow-mse-error 1e-5 :n 100000 :init-nth 2)
 	      (make-random-initializer `(8 8) `(8 8) `(8 8))
@@ -122,18 +107,13 @@
 
 ;; ~~ Gemm 256x256 (Tiled) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-(progn
-  (define-poly-func ((%gemm-256x256-lisp-poly-tiled :lisp))
-      ((:X `(256 256) :float) (:Y `(256 256) :float) (:Z `(256 256) :float))
-      (:tile t :verbose 0)
-    (for (i 256)
-	 (for (j 256)
-	      (for (k 256)
-		   (incf (aref :Z i k) (* (aref :X i j) (aref :Y j k)))))))
-
-  (defun gemm-256x256-lisp-poly-tiled (X Y Z)
-    (%gemm-256x256-lisp-poly-tiled X Y Z)
-    Z))
+(define-poly-func ((gemm-256x256-lisp-poly-tiled :lisp))
+    ((:X `(256 256) :float) (:Y `(256 256) :float) (:Z `(256 256) :float))
+    (:tile t :verbose 0)
+  (for (i 256)
+       (for (j 256)
+	    (for (k 256)
+		 (incf (aref :Z i k) (* (aref :X i j) (aref :Y j k)))))))
 
 (define-bench (gemm-256x256-tiled-float32 (256 256 256) :allow-mse-error 1e-5 :n 100 :init-nth 2)
 	      (make-random-initializer `(256 256) `(256 256) `(256 256))

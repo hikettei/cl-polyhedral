@@ -8,7 +8,7 @@
 ;; TODO: AMD Neon, AVX, etc...
 ;; TODO: SIMD
 
-;; Adding 1 for writing a function header.
+;; Indent to right for inserting a function header.
 (defun indent (&optional (offset 0)) (with-output-to-string (out) (dotimes (i (* 2 (+ *indent-level* offset 1))) (princ " " out))))
 
 ;; Writing a symbol
@@ -66,7 +66,7 @@
 	(format nil "~a~afor(~a ~a=~a; ~a<=~a; ~a+=~a) {~%~a~%~a} "
 		+indent+
 		;; TODO: Add Reduction if there's any!!
-		(if (and outermost-p (config-of kernel :openmp)) ;; OpenMP Exists
+		(if (and outermost-p (config-of kernel :omp)) ;; OpenMP Exists
 		    (format nil "#pragma omp parallel for num_threads(~a)~%~a" (config-of kernel :omp-n-threads) +indent+)
 		    "")
 		indexing
@@ -148,24 +148,116 @@
 			    op
 			    (concatenate 'string args))))))))
 
+(defun dtype->ctype (keyword)
+  (case keyword
+    (:float "float")
+    (:double "double")
+    (T (error ""))))
+
 (defmethod codegen-function ((backend (eql :gcc)) body kernel)
   (with-output-to-string (out)
+    ;; TODO: (format out "#pragma simd")
+    ;; TODO: #DEFINE MAX(a, b) etc...
     
-    ))
+    (when (config-of kernel :omp)
+      (format out "#include <omp.h>~%"))
 
-(defmethod load-optimized-function ((backend (eql :gcc)) body kernel)  
-  #'(lambda ())
-  )
+    (let* ((fname  (config-of kernel :function-name))
+	   (header (format nil "void ~a(~a)"
+			   fname
+			   (map-split
+			    ", "
+			    #'(lambda (buffer)
+				(format
+				 nil
+				 ;; (const | nil) dtype * (restrict | nil) name
+				 "~a ~a * ~a ~a"
+				 (ecase (buffer-io buffer)
+				   (:io "")
+				   (:out "")
+				   (:in "const"))
+				 (dtype->ctype (buffer-dtype buffer))
+				 (ecase (buffer-io buffer)
+				   (:io "")
+				   (:out "restrict")
+				   (:in  "restrict"))
+				 (buffer-name buffer)))				 
+			    (kernel-args kernel)))))
+      (format out "~a;~%" header)
+      (format out "~a {~%~a~%}" header body))))
+
+(defun %load-foreign-gcc-code
+    (source
+     kernel
+     &key
+       gcc
+       (flags))
+  (declare (type string source gcc))
+
+  (uiop:with-temporary-file (:pathname sharedlib :type "so" :keep t)
+    :close-stream
+    (let* ((cmd
+	     ;; gcc -shared -o sharedlib
+	     (append
+	      (list
+	       gcc
+	       "-shared" "-x" "c")
+	      flags
+	      (list "-o" (uiop:native-namestring sharedlib) "-")))
+	   (process-info (uiop:launch-program
+			  cmd
+			  :input :stream
+			  :error-output :stream))
+	   (input (uiop:process-info-input process-info))
+	   (error-output (uiop:process-info-error-output process-info)))
+      (unwind-protect (princ source input)
+	(close input))
+      (unless (zerop (uiop:wait-process process-info))
+	(error "cl-polyhedral: Failed to compile a shared library:~%~a~%
+
+Command: ~a
+
+Configs: ~a"
+	       (alexandria:read-stream-content-into-string error-output)
+	       (with-output-to-string (out)
+		 (dolist (c cmd) (princ c out) (princ " " out)))
+	       (with-output-to-string (out)
+		 (loop for (k . v) in (config-configs (kernel-config kernel))
+		       do (format out "~a -> ~a~%" k v))))))
+    (cffi:load-foreign-library sharedlib)))
+
+(defmethod load-optimized-function ((backend (eql :gcc)) body kernel)
+  ;; Compiling the body
+  (%load-foreign-gcc-code
+   body
+   kernel
+   :gcc    (config-of kernel :cx)
+   :flags  (config-of kernel :flags))
+
+  (compile
+   nil
+   `(lambda (,@(loop for buffer across (kernel-args kernel)
+		     collect
+		     (intern (symbol-name (buffer-name buffer)))))
+      (cffi:foreign-funcall
+       ,(config-of kernel :function-name)
+       ,@(loop for arg across (kernel-args kernel)
+	       append
+	       (list :pointer (intern (symbol-name (buffer-name arg)))))
+       :void)
+      nil)))
 
 (defmethod codegen-check-configs ((backend (eql :gcc)) config)
-  (declare-config config :openmp "Set T to use OpenMP." t t)
+  (declare-config config :omp "Set T to use OpenMP." t t)
   (declare-config config
 		  :omp-n-threads
 		  "Specify the number of cores."
 		  t (cl-cpus:get-number-of-processors))
   (declare-config config :int64 "Set T to use integer64 indexing" t t)
-  
-  (declare-config config :fastmath "Set T to use SLEEF FastMath." t t))
+  (declare-config config :fastmath "Set T to use SLEEF FastMath." t t)
+  (declare-config config :cx "Set the compiler to use" t "gcc")
+  (declare-config config :flags "Additional flags for gcc" t '("-fPIC" "-O3" "-march=native"))
+  (declare-config config :function-name "The name of a generated function." t (format nil "~a" (gensym "KID"))))
 
 
 ;; Running gemm
@@ -182,6 +274,7 @@
 	      (for (k 0 512)
 		   ;; TODO: setf -> incf
 		   (incf (aref :Z i k) (* (aref :X i j) (aref :Y j k)))))))
-  :verbose 3
-  :tile t
+  :verbose 2
+  :tile nil
   :backend :gcc))
+

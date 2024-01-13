@@ -10,5 +10,5 @@ help:
 
 .PHONY: test
 test: ## Running the test harness
-	$(CL) $(QUICKLOAD) --eval '(print (asdf:test-system :cl-polyhedral/test))' dynamic-space-size=4096
+	time $(CL) $(QUICKLOAD) --eval '(print (asdf:test-system :cl-polyhedral/test))' dynamic-space-size=4096
 

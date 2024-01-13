@@ -48,7 +48,7 @@
     (unless improved-p (return-from compare-results :get-slower))
     :improved))
 
-(defun MSE (x-use-nth y-use-nth X Y)
+(defun MSE (x-use-nth y-use-nth X Y &optional sample-p)
   ;; use-nth = 0 -> numcl array
   ;; use-nth = 1 -> pointer  
   (let ((X (ecase x-use-nth
@@ -59,8 +59,9 @@
 	     (1 (numcl:asarray Y)))))
     ;; Supress numcl style-warning
     #+sbcl(declare (sb-ext:muffle-conditions cl:style-warning))
-;;    (print X)
-;;    (print Y)
+    (when sample-p
+      (print X)
+      (print Y))
     (numcl:mean (numcl:- X Y))))
 
 (defun copy-helper (use-nth X)
@@ -68,10 +69,11 @@
     (0 (numcl:copy X))
     (1 (numcl:copy (numcl:asarray X)))))
 
-(defmacro define-bench ((name n-iters &key (allow-mse-error 1e-5) (n 10) (init-nth -1)) initializer (use-nth naive-impl n-flop) &rest test-pair)
+(defmacro define-bench ((name n-iters &key (allow-mse-error 1e-5) (n 10) (init-nth -1)) initializer (use-nth naive-impl n-flop &optional sample-p) &rest test-pair)
   "Defines a pair of benchmarking and accuracy testing.
 - name: the test is named after name
 - allow-mse-error
+- sample-p Set T to display the result.
 - initializer: a lambda function generating array for the testing function, returning ((arg1-array arg1-storage-pointer) (arg2-array arg2-storage-pointer) ...)
     - initializer reinit: ...
     - reinit=t, recreates a pair of (arr pointer)
@@ -81,7 +83,7 @@
 - init-nth: the nth argument is initialized again in each test. (avoiding reduce to produce a wrong result)
 "
   (declare (ignore n-flop))
-  (flet ((def-helper (initial-p name use-nth1 func)
+  (flet ((def-helper (initial-p name use-nth1 func sample-p)
 	   (alexandria:with-gensyms (initialized-args compare-to args result error total tmp nth)
 	     `(defun ,name ,@(if initial-p
 				 `((,initialized-args))
@@ -99,7 +101,7 @@
 		       (,result  (copy-helper ,use-nth1 (apply #',func ,args)))
 		       ;; MSE Error is measured only after initial computation was finished.
 		       ,@(when (not initial-p)
-			   `((,error   (MSE ,use-nth ,use-nth1 ,compare-to ,result))))
+			   `((,error   (MSE ,use-nth ,use-nth1 ,compare-to ,result ,sample-p))))
 		       (,total   (benchmark ,n (apply #',func ,args))))
 		  ,(if initial-p
 		       `(values ,result ,total)
@@ -114,13 +116,15 @@
       (alexandria:with-gensyms (naive-result naive-time default-args)
 	`(progn
 	   ;; Initial
-	   ,(def-helper t naive-name use-nth naive-impl)
+	   ,(def-helper t naive-name use-nth naive-impl sample-p)
 	   ,@(loop for defined-as in tmp-names
 		   for packs in test-pair
 		   for use-nth = (first  packs)
 		   for func    = (second packs)
+		   for flops   = (third packs)
+		   for samplep = (fourth packs)
 		   collect
-		   (def-helper nil defined-as use-nth func))
+		   (def-helper nil defined-as use-nth func samplep))
 	   (let ((,default-args (funcall ,initializer)))
 	     (multiple-value-bind (,naive-result ,naive-time)
 		 (,naive-name ,default-args)
