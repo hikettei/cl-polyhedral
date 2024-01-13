@@ -67,15 +67,80 @@
   (depends-on   depends-on :type list))
 
 (defstruct (Kernel
-	    (:constructor make-kernel (instructions domains args constants)))
+	    (:constructor make-kernel (instructions domains args constants &optional (config (make-config)))))
   "Represents a kernel.
 - Instructions[list] list of instructions in kernel. Includes assignments, variables, function calls, etc
 - Domains[list] a list of ISL SimpleSet Domains
 - args[list] arguments to the kernel
 - argtypes[list] types of the argument kernel
 - consts[list] a list of constants in the kernel"
+  (config       config       :type Config)
   (instructions instructions :type (simple-array Instruction (*)))
   (domains      domains      :type (simple-array Domain (*)))
   (args         args         :type (simple-array Buffer (*)))
   (constants constants       :type (simple-array Buffer (*))))
 
+(defvar *default-config* nil "This parameter declares a common Config for all kernels. Local declarations are overwritten with warnigns.
+e.g.: *default-config* = `(:openmp t :fastmath nil ...)")
+
+(defstruct (Config
+	    (:constructor make-config (&rest kv-pairs
+				       &aux
+					 (configs
+					  (progn
+					    (assert
+					     (mod (length kv-pairs) 2)
+					     ()
+					     "make-config: Odd number of arguments ~a.~%Keys and values must correspond one-to-one."
+					     kv-pairs)
+					    (loop for i upfrom 0 below (length kv-pairs) by 2
+						  for key = (nth i kv-pairs)
+						  for val = (nth (1+ i) kv-pairs)
+						  unless (find key *default-config*)
+						    collect
+						    (cons key val)
+						  else
+						    collect
+						    (let ((pos (position key *default-config*)))
+						      (when (not (eql val (nth (1+ pos) *default-config*)))
+							;; Changed
+							(warn "~a=~a was discarded because `*default-config*` supersedes against it. now it is replaced with ~a" key val (nth (1+ pos) *default-config*)))
+						      (cons (nth pos *default-config*) (nth (1+ pos) *default-config*)))))))))
+  "Represents a configuration.
+e.g.: (make-config :openmp t)
+after then:
+  - (declare-config kernel :openmp \"Docs\" ...)
+  - (config-of kernel :openmp) -> T
+"
+  (configs configs :type list))
+
+(defun declare-config (kernel backend config-keyword description &optional (optional nil) (default nil))
+  "TODO: Docs"
+  (declare (type kernel kernel)
+	   (type keyword config-keyword backend)
+	   (type (or nil string) description))
+
+  (let* ((pair (find config-keyword (config-configs (kernel-config kernel)) :key #'car :test #'eql)))
+    (if (null pair)
+	(if optional
+	    (push (cons config-keyword default) (config-configs (kernel-config kernel)))
+	    (error "declare-config: The backend ~a requires ~a as a config:~%~a~%Butgot:~%~a" backend config-keyword description
+		   (with-output-to-string (out)
+		     (loop for (k . v) in (config-configs (kernel-config kernel)) do
+		       (format out "~a -> ~a~%" k v)))))
+	T)))
+
+(defun config-of (kernel keyword)
+  "TODO: Docs"
+  (declare (type Kernel kernel)
+	   (type keyword keyword))
+  (or
+   (let ((pair
+	   (find keyword (config-configs (kernel-config kernel)) :key #'car :test #'eql)))
+     (and pair (return-from config-of (cdr pair))))
+   (error "config-of: The config ~a is missing from~%~a"
+	  keyword
+	  (with-output-to-string (out)
+	    (loop for (k . v) in (config-configs (kernel-config kernel)) do
+	      (format out "~a -> ~a~%" k v))))))
+		  

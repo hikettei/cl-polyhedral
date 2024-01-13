@@ -32,6 +32,7 @@ Indicates the level of logging. 0 or 1 or 2
 (defun run-polyhedral
     (kernel
      &key
+       (config (make-config))
        (backend :lisp)
        (parallel t)
        ;;(simd 0)
@@ -44,10 +45,15 @@ Does the following:
 - 
 "
   (declare (type Kernel kernel)
+	   (type Config config)
 	   (type keyword backend)
 	   (type boolean tile parallel)
 	   (type fixnum tile-element-n-byte)
 	   (type (integer 0 3) verbose))
+
+  ;; Updates the config with checking whether the contents satisfy the current backends' requirements.
+  (codegen-check-configs backend kernel)
+  (setf (kernel-config kernel) config)
   
   (macrolet ((with-verbose-level ((number) &body body) `(when (>= verbose ,number) ,@body)))
     (with-isl-ctx ctx

@@ -25,12 +25,15 @@
    (:file "source/tiling")
    (:file "source/memory-locality")
    (:file "source/ast")
-   (:file "source/polyhedral"))
+   (:file "source/polyhedral")
+   (:file "source/backends/gcc")
+   (:file "source/backends/opt-lisp")
+   (:file "source/backends/metal"))
   :in-order-to
   ((test-op (asdf:test-op cl-polyhedral/test))))    
 
 (asdf:defsystem :cl-polyhedral/test
-  :description ""
+  :description "Tests the accuracy and performance up compared to: OpenBLAS, Numcl, Vectorized C, etc. Including benchmarks."
   :author      "hikettei <ichndm@gmail.com>"
   :licence     "MIT"
   :depends-on (#:cl-polyhedral #:rove #:numcl #:cl-ansi-text #:lla)

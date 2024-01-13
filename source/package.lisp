@@ -6,13 +6,44 @@
    :cl
    :cffi
    :mgl-pax)
+  ;; Writing an extension
+  (:export
+   #:binary-op-t
+   #:codegen-write-id
+   #:codegen-write-num
+   #:codegen-write-binary-op
+   #:codegen-write-minus
+   #:codegen-write-for
+   #:codegen-write-block
+   #:codegen-write-index-ref
+   #:codegen-write-expr
+   #:codegen-write-array-move
+   #:codegen-write-instruction
+   #:codegen-function
+   #:load-optimized-function
+   #:codegen-check-configs)
+
+  ;; Configs
+  (:export
+   #:*default-config*
+   #:Config
+   #:Config-of
+   #:declare-config)
+  
   (:export
    #:make-kernel-from-dsl
    #:run-polyhedral
    #:define-poly-func
    #:poly-lambda
 
-   ))
+   )
+
+  ;; TODO: Graph Structures, Kernel Representations
+  (:export
+   #:Instruction
+   #:Domain
+   #:Buffer
+   #:Kernel))
 
 (in-package :cl-polyhedral)
 

@@ -3,15 +3,7 @@
 
 ;; Abstract Code Generator from Kernel -> Lisp
 
-;; A Function is consisted from two parts:
-;;  Headers (writing a function args etc, ref: AbstractNode.lisp)
-;;  For
-;;  Body
-
-;; TODO: FuseOp Scheduler
-;; TODO: Codegen Header部分とBody部分に分ける
-;; Since the goal is to work on any backends
-
+;; TODO
 (defsection @writing-an-extension (:title "Writing an extension"))
 
 (defgeneric codegen-write-id (backend id kernel)
@@ -251,4 +243,10 @@ instructions = list")
   (:documentation "The function compiles the given body and kernel, returning a funcallable object")
   (:method ((backend (eql :lisp)) body kernel)
     (eval (read-from-string body))))
+
+(defgeneric codegen-check-configs (backend kernel)
+  (:documentation "The method is called once before starting the compilation.")
+  (:method ((backend t) kernel) t)
+  (:method ((backend (eql :lisp)) kernel)
+    ))
 

@@ -1,12 +1,13 @@
 
 (in-package :cl-polyhedral/test)
 
+
 ;; ~~ Gemm 8x8 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 (progn
-  (define-poly-func %gemm-8x8-lisp-poly
+  (define-poly-func ((%gemm-8x8-lisp-poly :lisp))
       ((:X `(8 8) :float) (:Y `(8 8) :float) (:Z `(8 8) :float))
-      (:backend :lisp :tile nil :verbose 0)
+      (:tile nil :verbose 0)
     (for (i 8)
 	 (for (j 8)
 	      (for (k 8)
@@ -53,9 +54,9 @@
 ;; ~~ Gemm 256x256 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 (progn
-  (define-poly-func %gemm-256x256-lisp-poly
+  (define-poly-func ((%gemm-256x256-lisp-poly :lisp))
       ((:X `(256 256) :float) (:Y `(256 256) :float) (:Z `(256 256) :float))
-      (:backend :lisp :tile nil :verbose 0)
+      (:tile nil :verbose 0)
     (for (i 256)
 	 (for (j 256)
 	      (for (k 256)
@@ -99,9 +100,9 @@
 ;; ~~ Gemm 8x8 (Tiled) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 (progn
-  (define-poly-func %gemm-8x8-lisp-poly-tiled
+  (define-poly-func ((%gemm-8x8-lisp-poly-tiled :lisp))
       ((:X `(8 8) :float) (:Y `(8 8) :float) (:Z `(8 8) :float))
-      (:backend :lisp :tile t :verbose 0)
+      (:tile t :verbose 0)
     (for (i 8)
 	 (for (j 8)
 	      (for (k 8)
@@ -122,9 +123,9 @@
 ;; ~~ Gemm 256x256 (Tiled) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 (progn
-  (define-poly-func %gemm-256x256-lisp-poly-tiled
+  (define-poly-func ((%gemm-256x256-lisp-poly-tiled :lisp))
       ((:X `(256 256) :float) (:Y `(256 256) :float) (:Z `(256 256) :float))
-      (:backend :lisp :tile t :verbose 0)
+      (:tile t :verbose 0)
     (for (i 256)
 	 (for (j 256)
 	      (for (k 256)
