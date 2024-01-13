@@ -1,5 +1,6 @@
 CL            := ros
 QUICKLOAD     := --load cl-polyhedral.asd --eval '(progn (load "cl-polyhedral.asd") (ql:quickload :cl-polyhedral))'
+CX            := "clang"
 
 .DEFAULT_GOAL := help
 
@@ -14,5 +15,5 @@ test: ## Running the test harness
 
 .PHONY: test-arm64
 test-arm64: ## Running the test harness on Apple Silicon.
-	time $(CL) $(QUICKLOAD) --eval '(progn (defparameter cl-polyhedral:*default-config* (list :omp nil)) (print (asdf:test-system :cl-polyhedral/test)))' dynamic-space-size=4096
+	time $(CL) $(QUICKLOAD) --eval '(progn (defparameter cl-polyhedral:*default-config* (list :omp t :cx $(CX))) (print (asdf:test-system :cl-polyhedral/test)))' dynamic-space-size=4096
 

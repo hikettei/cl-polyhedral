@@ -50,7 +50,7 @@
 
 (defun MSE (x-use-nth y-use-nth X Y &optional sample-p)
   ;; use-nth = 0 -> numcl array
-  ;; use-nth = 1 -> pointer  
+  ;; use-nth = 1 -> pointer
   (let ((X (ecase x-use-nth
 	     (0 (numcl:reshape X `(-1)))
 	     (1 (numcl:asarray X))))
@@ -60,8 +60,9 @@
     ;; Supress numcl style-warning
     #+sbcl(declare (sb-ext:muffle-conditions cl:style-warning))
     (when sample-p
-      (print X)
-      (print Y))
+      ;;(print X)
+      ;;(print Y)
+      (print (numcl:- X Y)))
     (numcl:mean (numcl:- X Y))))
 
 (defun copy-helper (use-nth X)

@@ -77,7 +77,7 @@ where both of lhs, rhs are the type of string indicating an integer.
 
 (defgeneric codegen-write-for (backend kernel name from to by body execute-once outermost-p)
   (:documentation "Writes an iteration
-<- n-indent -> |for(int name=from; name<=to; name+=by) {
+<- n-indent -> |for(int name=from; name<to; name+=by) {
                |    body
 <- n-indent -> |}
 

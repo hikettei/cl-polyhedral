@@ -45,6 +45,14 @@
 (defmethod codegen-write-minus ((backend (eql :gcc)) lhs kernel)
   (format nil "-~a" lhs))
 
+(defun multithread-threshold-p (from to threshold)
+  (let* ((from (read-from-string from))
+	 (to   (read-from-string to)))
+    (and
+     (numberp from)
+     (numberp to)
+     (> (abs (- from to)) threshold))))
+
 (defmethod codegen-write-for ((backend (eql :gcc))
 			      kernel name
 			      from to by
@@ -63,10 +71,12 @@
 		from
 		+indent+
 		body)
-	(format nil "~a~afor(~a ~a=~a; ~a<=~a; ~a+=~a) {~%~a~%~a} "
+	(format nil "~a~afor(~a ~a=~a; ~a<~a; ~a+=~a) {~%~a~%~a} "
 		+indent+
 		;; TODO: Add Reduction if there's any!!
-		(if (and outermost-p (config-of kernel :omp)) ;; OpenMP Exists
+		(if (and outermost-p
+			 (config-of kernel :omp)
+			 (multithread-threshold-p from to 128))
 		    (format nil "#pragma omp parallel for num_threads(~a)~%~a" (config-of kernel :omp-n-threads) +indent+)
 		    "")
 		indexing
@@ -204,6 +214,8 @@
 	      (list
 	       gcc
 	       "-shared" "-x" "c")
+	      (when (config-of kernel :omp)
+		(list "-fopenmp"))
 	      flags
 	      (list "-o" (uiop:native-namestring sharedlib) "-")))
 	   (process-info (uiop:launch-program
@@ -283,4 +295,3 @@ Configs: ~a"
   :verbose 2
   :tile nil
   :backend :gcc))
-
