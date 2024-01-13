@@ -38,12 +38,17 @@
   (numcl:matmul X Y Z)
   Z)
 
-(define-bench (gemm-8x8-float32 (8 8 8) :allow-mse-error 0 :n 10000 :init-nth 2)
+(defun gemm-libblas (X Y Z)
+  (lla:gemm! 1.0 X Y 0.0 Z)
+  Z)
+
+(define-bench (gemm-8x8-float32 (8 8 8) :allow-mse-error 1e-5 :n 100000 :init-nth 2)
 	      (make-random-initializer `(8 8) `(8 8) `(8 8))
     (0 gemm-8x8-lisp-naive     2)
     (1 gemm-8x8-lisp-poly      2)
     (1 gemm-8x8-lisp-optimized 2)
-    (0 gemm-8x8-numcl          2))
+    (0 gemm-8x8-numcl          2)
+    (0 gemm-libblas            2))
 
 ;; ~~ Gemm 256x256 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -82,12 +87,13 @@
   (numcl:matmul X Y Z)
   Z)
 
-(define-bench (gemm-256x256-float32 (256 256 256) :allow-mse-error 0 :n 10 :init-nth 2)
+(define-bench (gemm-256x256-float32 (256 256 256) :allow-mse-error 1e-7 :n 100 :init-nth 2)
 	      (make-random-initializer `(256 256) `(256 256) `(256 256))
     (0 gemm-256x256-lisp-naive     2)
     (1 gemm-256x256-lisp-poly      2)
     (1 gemm-256x256-lisp-optimized 2)
-    (0 gemm-256x256-numcl          2))
+    (0 gemm-256x256-numcl          2)
+    (0 gemm-libblas                2))
 
 
 ;; ~~ Gemm 8x8 (Tiled) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -105,12 +111,13 @@
     (%gemm-8x8-lisp-poly-tiled X Y Z)
     Z))
 
-(define-bench (gemm-8x8-tiled-float32 (8 8 8) :allow-mse-error 0 :n 10000 :init-nth 2)
+(define-bench (gemm-8x8-tiled-float32 (8 8 8) :allow-mse-error 1e-7 :n 100000 :init-nth 2)
 	      (make-random-initializer `(8 8) `(8 8) `(8 8))
     (0 gemm-8x8-lisp-naive      2)
     (1 gemm-8x8-lisp-poly-tiled 2)
     (1 gemm-8x8-lisp-optimized  2)
-    (0 gemm-8x8-numcl           2))
+    (0 gemm-8x8-numcl           2)
+    (0 gemm-libblas             2))
 
 ;; ~~ Gemm 256x256 (Tiled) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -127,11 +134,12 @@
     (%gemm-256x256-lisp-poly-tiled X Y Z)
     Z))
 
-(define-bench (gemm-256x256-tiled-float32 (256 256 256) :allow-mse-error 0 :n 10 :init-nth 2)
+(define-bench (gemm-256x256-tiled-float32 (256 256 256) :allow-mse-error 1e-5 :n 100 :init-nth 2)
 	      (make-random-initializer `(256 256) `(256 256) `(256 256))
     (0 gemm-256x256-lisp-naive      2)
     (1 gemm-256x256-lisp-poly-tiled 2)
     (1 gemm-256x256-lisp-optimized  2)
-    (0 gemm-256x256-numcl           2))
+    (0 gemm-256x256-numcl           2)
+    (0 gemm-libblas                 2))
 
 

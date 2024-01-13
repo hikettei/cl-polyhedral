@@ -2,7 +2,17 @@
   :description "Abstract Polyhedral Compiler for Common Lisp"
   :author      "hikettei <ichndm@gmail.com>"
   :licence     "MIT"
-  :depends-on (#:mgl-pax #:cffi #:cffi-libffi #:alexandria #:trivia #:cl-ppcre #:cl-cpus #:lparallel)
+  :depends-on (#:mgl-pax
+	       #:cffi
+	       #:cffi-libffi
+	       #:alexandria
+	       #:trivia
+	       #:cl-ppcre
+	       #:cl-cpus
+	       #:lparallel
+	       #:rove
+	       #:cl-ansi-text
+	       #:numcl)
   :serial t
   :components
   ((:file "source/package")
@@ -23,7 +33,7 @@
   :description ""
   :author      "hikettei <ichndm@gmail.com>"
   :licence     "MIT"
-  :depends-on (#:cl-polyhedral #:rove #:numcl #:cl-ansi-text)
+  :depends-on (#:cl-polyhedral #:rove #:numcl #:cl-ansi-text #:lla)
   :components
   ((:file "test/package")
    (:file "test/dsl")
