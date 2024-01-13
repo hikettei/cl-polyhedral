@@ -162,6 +162,8 @@
     (when (config-of kernel :omp)
       (format out "#include <omp.h>~%"))
 
+    (format out "#define min(a, b) ((a) < (b) ? (a) : (b))~%#define max(a, b) ((a) > (b) ? (a) : (b))~%")
+
     (let* ((fname  (config-of kernel :function-name))
 	   (header (format nil "void ~a(~a)"
 			   fname
@@ -239,13 +241,17 @@ Configs: ~a"
    `(lambda (,@(loop for buffer across (kernel-args kernel)
 		     collect
 		     (intern (symbol-name (buffer-name buffer)))))
-      (cffi:foreign-funcall
-       ,(config-of kernel :function-name)
-       ,@(loop for arg across (kernel-args kernel)
-	       append
-	       (list :pointer (intern (symbol-name (buffer-name arg)))))
-       :void)
-      nil)))
+      (cl-polyhedral:with-arrays-to-pointers
+	  (,@(loop for buffer across (kernel-args kernel)
+		   for sym = (intern (symbol-name (buffer-name buffer)))
+		   collect (list sym sym)))
+	(cffi:foreign-funcall
+	 ,(config-of kernel :function-name)
+	 ,@(loop for arg across (kernel-args kernel)
+		 append
+		 (list :pointer (intern (symbol-name (buffer-name arg)))))
+	 :void)
+	nil))))
 
 (defmethod codegen-check-configs ((backend (eql :gcc)) config)
   (declare-config config :omp "Set T to use OpenMP." t t)
@@ -275,6 +281,6 @@ Configs: ~a"
 		   ;; TODO: setf -> incf
 		   (incf (aref :Z i k) (* (aref :X i j) (aref :Y j k)))))))
   :verbose 2
-  :tile nil
+  :tile t
   :backend :gcc))
 

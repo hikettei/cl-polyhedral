@@ -289,3 +289,12 @@ e.g.: (+ a 1) -> a"
     ((list* (type symbol) _)
      (apply #'concatenate 'list (map 'list #'get-expr-all-symbols (cdr expr))))))
 
+(defmacro with-arrays-to-pointers ((&rest input-forms) &body body)
+  "Utils for converting arrays into pointers"
+  (labels ((expand (rest-forms)
+	     (if rest-forms
+		 `(cffi:with-pointer-to-vector-data (,(caar rest-forms) ,(second (car rest-forms)))
+		    ,(expand (cdr rest-forms)))
+		 `(progn ,@body))))
+    (expand input-forms)))
+

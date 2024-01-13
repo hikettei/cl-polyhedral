@@ -40,6 +40,8 @@
 
    )
 
+  (:export
+   #:with-arrays-to-pointers)
   ;; TODO: Graph Structures, Kernel Representations
   (:export
    #:Buffer

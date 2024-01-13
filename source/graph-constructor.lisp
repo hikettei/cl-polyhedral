@@ -321,11 +321,11 @@ TODO
 		  (funcall ,f ,@arg-names)))))
       `(progn
 	 ,(def-helper function-name backend)
-	 ,(loop for pair in more
-		for fname   = (first  pair)
-		for backend = (second pair)
-		collect
-		(def-helper fname backend))))))
+	 ,@(loop for pair in more
+		 for fname   = (first  pair)
+	 	 for backend = (second pair)
+		 collect
+		 (def-helper fname backend))))))
 
 ;; [FIXME]
 ;; Likewise cl-metal,
