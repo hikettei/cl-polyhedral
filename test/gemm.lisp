@@ -37,8 +37,8 @@
     (1 gemm-8x8-lisp-optimized 2)
     (1 gemm-8x8-lisp-poly      2)
     (1 gemm-8x8-gcc-poly       2)
-    (0 gemm-8x8-numcl          2)
-    (0 gemm-libblas            2))
+    (0 gemm-8x8-numcl          2 nil :get-slower)
+    (0 gemm-libblas            2 nil :get-slower))
 
 ;; ~~ Gemm 256x256 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -91,8 +91,8 @@
     (1 gemm-8x8-lisp-optimized  2)
     (1 gemm-8x8-lisp-poly-tiled 2)
     (1 gemm-8x8-gcc-poly-tiled  2)
-    (0 gemm-8x8-numcl           2)
-    (0 gemm-libblas             2))
+    (0 gemm-8x8-numcl           2 nil :get-slower)
+    (0 gemm-libblas             2 nil :get-slower))
 
 ;; ~~ Gemm 256x256 (Tiled) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -113,4 +113,7 @@
     (0 gemm-256x256-numcl           2)
     (0 gemm-libblas                 2))
 
+
+;; To Add: 1024x1024
+;;         4096x4096
 

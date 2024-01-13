@@ -69,7 +69,7 @@
     (0 (numcl:copy X))
     (1 (numcl:copy (numcl:asarray X)))))
 
-(defmacro define-bench ((name n-iters &key (allow-mse-error 1e-5) (n 10) (init-nth -1)) initializer (use-nth naive-impl n-flop &optional sample-p) &rest test-pair)
+(defmacro define-bench ((name n-iters &key (allow-mse-error 1e-5) (n 10) (init-nth -1)) initializer (use-nth naive-impl n-flop &optional sample-p expect) &rest test-pair)
   "Defines a pair of benchmarking and accuracy testing.
 - name: the test is named after name
 - allow-mse-error
@@ -82,7 +82,7 @@
 - test-pair: a pair of (use-nth naive-impl n-flop) but the accuracy is measured between the returned array and naive-impl's one.
 - init-nth: the nth argument is initialized again in each test. (avoiding reduce to produce a wrong result)
 "
-  (declare (ignore n-flop))
+  (declare (ignore n-flop expect))
   (flet ((def-helper (initial-p name use-nth1 func sample-p)
 	   (alexandria:with-gensyms (initialized-args compare-to args result error total tmp nth)
 	     `(defun ,name ,@(if initial-p
@@ -133,6 +133,7 @@
 			 for defined-as in tmp-names
 			 for func-name = (second packs)
 			 for n-flop    = (third packs)
+			 for expect    = (or (fifth packs) :improved)
 			 collect
 			 `(testing ,(symbol-name func-name)
 			    (multiple-value-bind (_ error-rate total-time)
@@ -145,7 +146,7 @@
 					     total-time
 					     ',n-iters
 					     ,n-flop)))
-				(ok (eql result :improved))))))))))))))
+				(ok (eql result ,expect))))))))))))))
 
 
 ;; ~~ Utils (Random Generators) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

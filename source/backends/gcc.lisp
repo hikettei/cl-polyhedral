@@ -51,8 +51,8 @@
 			      body execute-once outermost-p)
   (let ((indexing
 	  (if (config-of kernel :int64)
-	      "long"
-	      "int32"))
+	      "int"
+	      "long"))
 	(+indent+ (indent)))
     ;; outermost-p && OpenMP
     (if execute-once ;; == niter is 1
@@ -281,6 +281,6 @@ Configs: ~a"
 		   ;; TODO: setf -> incf
 		   (incf (aref :Z i k) (* (aref :X i j) (aref :Y j k)))))))
   :verbose 2
-  :tile t
+  :tile nil
   :backend :gcc))
 
