@@ -75,8 +75,7 @@
 		+indent+
 		;; TODO: Add Reduction if there's any!!
 		(if (and outermost-p
-			 (config-of kernel :omp)
-			 (multithread-threshold-p from to 128))
+			 (config-of kernel :omp))
 		    (format nil "#pragma omp parallel for num_threads(~a)~%~a" (config-of kernel :omp-n-threads) +indent+)
 		    "")
 		indexing
@@ -295,4 +294,19 @@ Configs: ~a"
   :tile t
   :backend :gcc))
 
+#+(or)
+(time
+ (run-polyhedral
+  (make-kernel-from-dsl
+   (list
+    (make-buffer :X `(256 256) :FLOAT)
+    (make-buffer :Y `(256 256) :FLOAT)
+    (make-buffer :Z `(256 256) :FLOAT))
+   `(for (i 256)
+	 (for (j 0 256)
+	      (for (k 0 256)
+		   (incf (aref :Z i k) (* (aref :X i j) (aref :Y j k)))))))
+  :verbose 2
+  :tile t
+  :backend :gcc))
 

@@ -34,7 +34,8 @@
     
     ;; [TODO] Always using the largest cache-size?
     ;; what if L1 sizes are different across multiple cores like Apple Silicon.
-    (let* ((linesize   (apply #'max *L1-Cache*)) ;; Byte
+    ;; Set = #'min and performs the best speed (helps to reduce the number of cache-miss)
+    (let* ((linesize   (apply #'min *L1-Cache*)) ;; Byte
 	   (linesize   (floor linesize element-n-byte))
 	   (tilesize   (floor (min linesize (expt linesize (/ n)))))
 	   (band-space (%"isl_schedule_node_band_get_space":pointer :pointer band))
@@ -142,5 +143,5 @@
 		(return-from find-tiling))
 	      (setf node (car (last next-nodes)))
 	      (setf next-nodes (butlast next-nodes)))
-      tile-schedule)))
+      (values tile-schedule n))))
 

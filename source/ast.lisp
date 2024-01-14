@@ -56,8 +56,9 @@
   :isl_ast_expr_op_member
   :isl_ast_expr_op_address_of)
 
-(defun parse-isl-ast (backend ex kernel &optional outermost-p)
+(defun parse-isl-ast (backend ex kernel explore-outermost-until count)
   (declare (type Kernel kernel))
+  
   (with-inlined-foreign-funcall-mode
     (let ((type (%"isl_ast_node_get_type":isl-ast-node-type :pointer ex)))
       ;;(print type)
@@ -65,20 +66,20 @@
 	(:isl_ast_node_error
 	 (error ":isl-ast-node-error"))
 	(:isl_ast_node_for
-	 (parse-isl-ast-for   backend ex kernel outermost-p))
+	 (parse-isl-ast-for backend ex kernel explore-outermost-until count))
 	(:isl_ast_node_if
 	 ;;(parse-isl-ast-if    backend ex kernel)
 	 (error "Not implemented: parse-isl-ast-if")
 	 )
 	(:isl_ast_node_block
-	 (parse-isl-ast-block backend ex kernel outermost-p))
+	 (parse-isl-ast-block backend ex kernel explore-outermost-until count))
 	(:isl_ast_node_mark
 	 ;;(parse-isl-ast-mark  backend ex kernel)
 	 "")
 	(:isl_ast_node_user
 	 (parse-isl-ast-user  backend ex kernel))))))
 
-(defun parse-isl-ast-block (backend ex kernel outermost-p)
+(defun parse-isl-ast-block (backend ex kernel explore-outermost-until count)
   (with-inlined-foreign-funcall-mode
     (let* ((children (%"isl_ast_node_block_get_children":pointer :pointer ex))
 	   (n        (%"isl_ast_node_list_n_ast_node":int :pointer children)))
@@ -87,7 +88,7 @@
        (loop for i upfrom 0 below n
 	     for child = (%"isl_ast_node_list_get_at":pointer :pointer children :int i)
 	     collect
-	     (parse-isl-ast backend child kernel outermost-p))
+	     (parse-isl-ast backend child kernel explore-outermost-until count))
        kernel))))
 
 (defun replace-body-with-new-ids (body new-ids)
@@ -334,7 +335,7 @@
 		 )))))))))
 
 
-(defun parse-isl-ast-for (backend ex kernel outermost-p)
+(defun parse-isl-ast-for (backend ex kernel explore-outermost-until count)
   (with-inlined-foreign-funcall-mode
     (let* ((execute-once (%"isl_ast_node_for_is_degenerate":boolean :pointer ex))
 	   (iter         (%"isl_ast_node_for_get_iterator":pointer  :pointer ex))
@@ -347,11 +348,6 @@
 			   (%"isl_ast_node_for_get_init":pointer
 			     :pointer ex)
 			   kernel))
-	   (body          (with-deeper-indent
-			    (parse-isl-ast
-			     backend
-			     (%"isl_ast_node_for_get_body":pointer :pointer ex)
-			     kernel)))
 	   (by           (parse-isl-expr
 			  backend
 			  (%"isl_ast_node_for_get_inc":pointer :pointer ex)
@@ -360,7 +356,78 @@
 			  backend
 			  (%"isl_ast_node_for_get_cond":pointer :pointer ex)
 			  kernel
-			  :determine-upper-bound-p t)))
+			  :determine-upper-bound-p t))
+	   ;; For comparison
+	   (from1          (parse-isl-expr
+			    :lisp
+			    (%"isl_ast_node_for_get_init":pointer
+			      :pointer ex)
+			    kernel))
+	   (by1           (parse-isl-expr
+			   :lisp
+			   (%"isl_ast_node_for_get_inc":pointer :pointer ex)
+			   kernel))
+	   (to1           (parse-isl-expr
+			   :lisp
+			   (%"isl_ast_node_for_get_cond":pointer :pointer ex)
+			   kernel
+			   :determine-upper-bound-p t))
+	   (outermost-p  (or
+			  ;; Explored all explore-outermost-until iterations, but there was no any loops that can be parallelized
+			  ;;  -> try the last one.
+			  (and count
+			       (= (1- count) explore-outermost-until)
+			       (let* ((from (read-from-string from1))
+				      (to   (read-from-string to1))
+				      (by   (read-from-string by1))
+				      ;; [TODO] Improve how to determine cost-threshold
+				      (cost-threshold (cl-cpus:get-number-of-processors))
+				      (itersize
+					(and
+					 (listp to)
+					 (string= (format nil "~a" (car to)) "MIN")
+					 (listp to)
+					 (listp (third to))
+					 (not (null (third to)))
+					 (third (third to)))))
+				 ;; As long as the loop is tiled; try it.
+				 ;; If the iteration is tiled;
+				 ;; from = c0
+				 ;; to = (min c0 (+. c0 itersize))
+				 ;; by = nothing but number
+				 ;; (print from)
+				 ;; (print to)
+				 ;; (print by)
+				 (and
+				  (numberp by)
+				  (symbolp from)
+				  (numberp itersize)
+				  (>= itersize cost-threshold))))
+			  ;; Finding the iteration which is enough large that parallelized.
+			  (and
+			   count
+			   (<= count explore-outermost-until)
+			   (let ((from (read-from-string from1))
+				 (to   (read-from-string to1))
+				 (by   (read-from-string by1)))
+			     (and
+			      (numberp from)
+			      (numberp to)
+			      (numberp by)
+			      ;; The iteration is worth to parallelize?
+			      ;; TODO: Compute the more accurate cost-threshold
+			      (let ((itersize (/ (- to from) by))
+				    (cost-threshold (cl-cpus:get-number-of-processors)))
+				(>= itersize cost-threshold)))))))
+	   (body          (with-deeper-indent
+			    (parse-isl-ast
+			     backend
+			     (%"isl_ast_node_for_get_body":pointer :pointer ex)
+			     kernel
+			     explore-outermost-until
+			     (if outermost-p ;; If outermost was found -> do not parallelize the subsequent loops
+				 nil
+				 (and count (1+ count)))))))
       (codegen-write-for
        backend kernel
        name from to by body execute-once outermost-p))))

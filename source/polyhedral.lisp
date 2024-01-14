@@ -37,13 +37,14 @@ Indicates the level of logging. 0 or 1 or 2
 ;;  - VS:  OpenBLAS
 ;;  - Add: Restricted ANSI Common Lisp Code ->
 ;;  - Goal: < 5000 Line Codes in total. CUDA/Metal/GCC etc... backends (within 300 line)
+;;  - Compute the schedule of each threads (like petalisp)
+;;  - sb-simd
 
 (defun run-polyhedral
     (kernel
      &key
        (config (make-config))
        (backend :lisp)
-       (parallel t)
        ;;(simd 0)
        (tile nil)
        (verbose *verbose*)
@@ -56,7 +57,7 @@ Does the following:
   (declare (type Kernel kernel)
 	   (type Config config)
 	   (type keyword backend)
-	   (type boolean tile parallel)
+	   (type boolean tile)
 	   (type fixnum tile-element-n-byte)
 	   (type (integer 0 3) verbose))
 
@@ -225,7 +226,8 @@ Does the following:
 		       :void))
 		    
 		    (let* ((loop-orders
-			     (get-best-nesting-orders kernel (= verbose 3))))
+			     (get-best-nesting-orders kernel (= verbose 3)))
+			   (explore-outermost-until 0))
 		      (with-verbose-level (3)
 			(format t "~% New Loop Orders(verbose=3):~%~a~%" loop-orders))
 		      (apply-reorder-schedule-loops! schedule ctx loop-orders)		      
@@ -237,7 +239,10 @@ Does the following:
 			 :void))
 
 		      (when tile
-			(setf schedule (tile-schedule kernel schedule ctx tile-element-n-byte)))
+			(multiple-value-bind (schedule-new n)
+			    (tile-schedule kernel schedule ctx tile-element-n-byte)
+			  (setf schedule schedule-new
+				explore-outermost-until n)))
 
 		      (with-verbose-level (3)
 			(format t "~% New Schedule After Tiling(verbose=3):~%")
@@ -261,7 +266,9 @@ Does the following:
 			(let ((body
 				(codegen-function
 				 backend
-				 (parse-isl-ast backend ast kernel parallel)
+				 ;; When tiled, the outermost loop isn't the best one to split;
+				 ;; explore the deeper
+				 (parse-isl-ast backend ast kernel explore-outermost-until 0)
 				 kernel)))
 			  (with-verbose-level (2)
 			    (format t "~%Final ~a Code(verbose=2):~%~a~%"
@@ -364,7 +371,8 @@ Does the following:
 			     (for (f 0 60)
 				  (setf (aref :X e b d c f a) (aref :Y f e a d b c)))))))))
   :verbose 3
-  :tile nil))
+  :backend :gcc
+  :tile t))
 
 ;; Conv2D
 
@@ -379,7 +387,7 @@ Does the following:
 
 #+(or)
 (multiple-value-bind (N img-x img-y in-features out-features k-x k-y)
-    (values 10 128 128 32 32 25 25)
+    (values 256 128 128 32 32 25 25)
   (time
    (run-polyhedral
     (make-kernel-from-dsl
@@ -397,6 +405,6 @@ Does the following:
 					 ;; C = C + A*B 
 					 (incf (aref :OUT n fout y x) (* (aref :W fout fin y x) (aref :X n fin (+ y k0) (+ x k1))))))))))))
     :verbose 2
-    :tile nil
+    :tile t
     :backend :gcc)))
 

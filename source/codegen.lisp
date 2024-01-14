@@ -81,7 +81,7 @@ where both of lhs, rhs are the type of string indicating an integer.
                |    body
 <- n-indent -> |}
 
-- outermost-p[boolean] Set T if the iteration is placed in the outermost.
+- outermost-p[boolean] The loop can be parallelized if set to T.
 
 - n-indent[fixnum] counts the depth of indentation
 
@@ -92,14 +92,7 @@ where both of lhs, rhs are the type of string indicating an integer.
 	(format nil "(let ((~a ~a)) ~a)" name from body)
 	(format nil "(~a (~a (1+ (- ~a ~a))) (let ((~a (+ (* ~a ~a) ~a))) ~a))"
 		(if outermost-p
-		    (if (let* ((from (read-from-string from))
-			       (to   (read-from-string to)))
-			  (and
-			   (numberp from)
-			   (numberp to)
-			   (> (abs (- from to)) 1024)))			       
-			"lparallel:pdotimes"
-			"dotimes")
+		    "lparallel:pdotimes"		
 		    "dotimes")
 		name
 		to from
