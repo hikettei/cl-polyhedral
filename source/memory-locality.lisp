@@ -41,7 +41,7 @@
 		      (or
 		       ;; TODO: Optimize this T_T
 		       (find id (coerce (kernel-constants kernel) 'list) :key #'buffer-name)
-		       (error "~a isn't found?" id))))
+		       (error "striding-level: The buffer ~a isn't declared." id))))
 		(loop with buffer = (if (>= (length (buffer-strides found-buffer)) 1)
 					found-buffer
 					(error "Cannot be referenced as a tensor; because the buffer ~a is declared as a scalar." found-buffer))

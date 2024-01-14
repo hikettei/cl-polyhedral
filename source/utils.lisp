@@ -87,13 +87,13 @@ e.g.: 0 <= i <= n and 0 <= j <= n"
 			     (format nil " and ~a " (map-split " and " #'lisp->isl (inst-conds inst)))
 			     " ")))
 		  (if (eql 1 (domain-by domain))
-		      (format out "~a <= ~(~a~) <= ~a~a"
+		      (format out "~a <= ~(~a~) < ~a~a"
 			      (domain-from domain)
 			      (domain-subscript domain)
 			      (domain-to domain)
 			      (instcond))
 		      (let ((ident (unique-identifier)))
-			(format out "exists ~a: ~(~a~) = ~(~a~)~(~a~) + ~(~a~) and ~(~a~) <= ~(~a~) <= ~(~a~)~a"
+			(format out "exists ~a: ~(~a~) = ~(~a~)~(~a~) + ~(~a~) and ~(~a~) <= ~(~a~) < ~(~a~)~a"
 				ident
 				(domain-subscript domain)
 				(domain-by domain)

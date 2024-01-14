@@ -263,7 +263,7 @@
 		   ;; a < b
 		   ;; ->
 		   ;; a <= b-1
-		   (:isl_ast_expr_op_lt
+		   (:isl_ast_expr_op_lt ;; a < b
 		    (return-from parse-isl-expr
 		      (if (numberp (read-from-string rhs))
 			  (codegen-write-num backend (1- (read-from-string rhs)) kernel)
@@ -274,7 +274,7 @@
 			   (codegen-write-num backend 1 kernel)
 			   kernel))))
 		   ;; <=
-		   (:isl_ast_expr_op_le
+		   (:isl_ast_expr_op_le ;; a <= b
 		    (return-from parse-isl-expr rhs))))
 	       (ecase op-type
 		 (:isl_ast_expr_op_and

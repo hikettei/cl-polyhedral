@@ -71,7 +71,7 @@
 		from
 		+indent+
 		body)
-	(format nil "~a~afor(~a ~a=~a; ~a<~a; ~a+=~a) {~%~a~%~a} "
+	(format nil "~a~afor(~a ~a=~a; ~a<=~a; ~a+=~a) {~%~a~%~a} "
 		+indent+
 		;; TODO: Add Reduction if there's any!!
 		(if (and outermost-p
@@ -270,7 +270,7 @@ Configs: ~a"
   (declare-config config
 		  :omp-n-threads
 		  "Specify the number of cores."
-		  t (cl-cpus:get-number-of-processors))
+		  t (1+ (cl-cpus:get-number-of-processors)))
   (declare-config config :int64 "Set T to use integer64 indexing" t t)
   (declare-config config :fastmath "Set T to use SLEEF FastMath." t t)
   (declare-config config :cx "Set the compiler to use" t "gcc")
@@ -290,8 +290,9 @@ Configs: ~a"
    `(for (i 100)
 	 (for (j 0 256)
 	      (for (k 0 512)
-		   ;; TODO: setf -> incf
 		   (incf (aref :Z i k) (* (aref :X i j) (aref :Y j k)))))))
   :verbose 2
-  :tile nil
+  :tile t
   :backend :gcc))
+
+

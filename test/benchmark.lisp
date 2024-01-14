@@ -42,7 +42,7 @@
      (float
       (/
        (/ (* (apply #'* iters) n-flop) total-time) ;; Flops -> GFlops
-       1.0e9))
+       1.0e10))
      (funcall format-speed (format nil "~a%" (* 100 (float (/ naive-time total-time))))))
     (unless accuracy-p (return-from compare-results :wrong-result))
     (unless improved-p (return-from compare-results :get-slower))

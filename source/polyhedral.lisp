@@ -9,6 +9,13 @@ Indicates the level of logging. 0 or 1 or 2
 2 -> Display before/after schedules
 3 -> Displays all progresses")
 
+;; Workload on optimizing...:
+;;  - Fix Tiling
+;;  - Reduction
+;;  - SIMD
+;;  - Shader (allocating id)
+;;  - defeat openblas in gemm
+;;  - sparse matrix? (looks harder for me)
 ;; TODO:
 ;;  - SIMDify
 ;;  - Loop Collapse (If strides are nothing)
@@ -28,6 +35,8 @@ Indicates the level of logging. 0 or 1 or 2
 ;;  - Add: GCC backend
 ;;  - Opt: Lisp Backend
 ;;  - VS:  OpenBLAS
+;;  - Add: Restricted ANSI Common Lisp Code ->
+;;  - Goal: < 5000 Line Codes in total. CUDA/Metal/GCC etc... backends (within 300 line)
 
 (defun run-polyhedral
     (kernel
@@ -173,7 +182,7 @@ Does the following:
 		  (set-option "isl_options_set_schedule_whole_component" 1)
 		  (set-option "isl_options_set_schedule_treat_coalescing" 1)
 		  (set-option "isl_options_set_tile_scale_tile_loops" 1)
-		  ;;(set-option "isl_options_set_schedule_split_scaled" 1)
+		  ;; (set-option "isl_options_set_schedule_split_scaled" 1)
 		  (set-option "isl_options_set_schedule_serialize_sccs" 1)
 		  ;; More ...
 		  )
@@ -388,5 +397,6 @@ Does the following:
 					 ;; C = C + A*B 
 					 (incf (aref :OUT n fout y x) (* (aref :W fout fin y x) (aref :X n fin (+ y k0) (+ x k1))))))))))))
     :verbose 2
-    :tile t)))
+    :tile nil
+    :backend :gcc)))
 

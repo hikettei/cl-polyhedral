@@ -77,7 +77,7 @@ where both of lhs, rhs are the type of string indicating an integer.
 
 (defgeneric codegen-write-for (backend kernel name from to by body execute-once outermost-p)
   (:documentation "Writes an iteration
-<- n-indent -> |for(int name=from; name<to; name+=by) {
+<- n-indent -> |for(int name=from; name<=to; name+=by) {
                |    body
 <- n-indent -> |}
 
@@ -90,7 +90,7 @@ where both of lhs, rhs are the type of string indicating an integer.
   (:method ((backend (eql :lisp)) kernel name from to by body execute-once outermost-p)
     (if execute-once
 	(format nil "(let ((~a ~a)) ~a)" name from body)
-	(format nil "(~a (~a (- ~a ~a)) (let ((~a (+ (* ~a ~a) ~a))) ~a))"
+	(format nil "(~a (~a (1+ (- ~a ~a))) (let ((~a (+ (* ~a ~a) ~a))) ~a))"
 		(if outermost-p
 		    (if (let* ((from (read-from-string from))
 			       (to   (read-from-string to)))
