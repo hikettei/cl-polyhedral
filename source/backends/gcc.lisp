@@ -322,7 +322,14 @@ Configs: ~a"
    scalar-p))
 
 (defmethod codegen-write-simd-stride ((backend (eql :gcc)) buffer kernel)
-  (round (/ (* 8 (cffi:foreign-type-size (buffer-dtype buffer))) (config-of kernel :simd-n-bit))))
+  (let ((out
+	  (/
+	   (config-of kernel :simd-n-bit)
+	   (* 8 (cffi:foreign-type-size (buffer-dtype buffer))))))
+    (assert (integerp out)
+	    ()
+	    "Assertion Failed with: SIMD_N_BIT must be divied by ~a" (* 8 (cffi:foreign-type-size (buffer-dtype buffer))))
+    out))
 
 (defmethod codegen-write-simd-intrinsics ((backend (eql :gcc)) callexpr body target-buffer source-buffers kernel)
   (flet ((buffer->aref (buffer aref)

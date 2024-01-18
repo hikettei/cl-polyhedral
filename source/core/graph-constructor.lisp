@@ -312,27 +312,28 @@ TODO
     ((list (or '> '>= '< '<=) lhs rhs)
      (format nil "~(~a~) ~a ~(~a~)" (lisp->isl lhs) (car expr) (lisp->isl rhs)))))
 
-(defmacro define-poly-func (((function-name backend) &rest more) (&rest args) (&key (config) (tile t) (verbose 0)) &body body &aux (f (gensym)))
+(defmacro define-poly-func (((function-name backend &rest options) &rest more) (&rest args) (&key (config) (tile t) (verbose 0)) &body body &aux (f (gensym)))
   "TODO: Docs"
   (let ((arg-names (loop for arg in args collect (intern (format nil "~a" (car arg))))))
-    (flet ((def-helper (name backend)
-	     `(let ((,f (poly-lambda (,@args) (:config ,config :backend ,backend :tile ,tile :verbose ,verbose) ,@body)))
+    (flet ((def-helper (name backend option)
+	     `(let ((,f (poly-lambda (,@args) (:config ,config :backend ,backend :tile ,tile :verbose ,verbose ,@option) ,@body)))
 		(defun ,name (,@arg-names)
 		  (funcall ,f ,@arg-names)))))
       `(progn
-	 ,(def-helper function-name backend)
+	 ,(def-helper function-name backend options)
 	 ,@(loop for pair in more
 		 for fname   = (first  pair)
 	 	 for backend = (second pair)
+		 for option  = (cddr pair)
 		 collect
-		 (def-helper fname backend))))))
+		 (def-helper fname backend option))))))
 
 ;; [FIXME]
 ;; Likewise cl-metal,
 ;; Can't we make it a compile-time function? dumping compiled structure into .fasl
 ;; To ignore the first time compilation overhead ...
 ;; The problem is that it is unknown until specifying backend whether the current backend can be compiled/dumped.
-(defmacro poly-lambda ((&rest args) (&key (backend :lisp) (config) (tile t) (verbose 0)) &body body)
+(defmacro poly-lambda ((&rest args) (&key (backend :lisp) (simd nil) (config) (tile t) (verbose 0)) &body body)
   "TODO: Docs"
   `(run-polyhedral
     (make-kernel-from-dsl
@@ -345,6 +346,7 @@ TODO
     :config  (make-config ,@config)
     :backend ,backend
     :tile    ,tile
+    :simd    ,simd
     :verbose ,verbose))
 
     

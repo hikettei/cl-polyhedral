@@ -525,45 +525,63 @@ e.g.: c0, c1 ,c2...")
 				    (cost-threshold (cl-cpus:get-number-of-processors)))
 				(>= itersize cost-threshold)))))))
 	   (updated-p nil)
-	   (body          (with-deeper-indent
-			    (let* ((n1 (length *inner-cached*))
-				   (*determined*
-				     `(,@*determined* ,name))
-				   (*inner-cached*
-				     (copy-list *inner-cached*))
-				   (caches (make-loop-inner-cache ex kernel)))
-			      (when (not (= n1 (length *inner-cached*)))
-				(setf updated-p t))
-			      (merge-body-and-caches
-			       backend
-			       kernel
-			       (parse-isl-ast
-				backend
-				(%"isl_ast_node_for_get_body":pointer :pointer ex)
-				kernel
-				explore-outermost-until
-				(if outermost-p ;; If outermost was found -> do not parallelize the subsequent loops
-				    nil
-				    (and count (1+ count)))
-				simd)
-			       caches
-			       simd))))
+	   (body
+	     (with-deeper-indent
+	       (let* ((n1 (length *inner-cached*))
+		      (*determined*
+			`(,@*determined* ,name))
+		      (*inner-cached*
+			(copy-list *inner-cached*))
+		      (caches (make-loop-inner-cache ex kernel)))
+		 (when (not (= n1 (length *inner-cached*)))
+		   (setf updated-p t))
+		 (merge-body-and-caches
+		  backend
+		  kernel
+		  (parse-isl-ast
+		   backend
+		   (%"isl_ast_node_for_get_body":pointer :pointer ex)
+		   kernel
+		   explore-outermost-until
+		   (if outermost-p ;; If outermost was found -> do not parallelize the subsequent loops
+		       nil
+		       (and count (1+ count)))
+		   simd)
+		  caches
+		  simd))))
 	   (simd-stride
-	     (when (and updated-p simd (car (last *inner-cached*))) ;; updated in this session and the kernel is tb vectorized.
-	       (codegen-write-simd-stride backend (car (last *inner-cached*)) kernel))))
+	     (when (and
+		    simd
+		    (or
+		     updated-p ;; updated in this session and the kernel is tb vectorized.
+		     (subnode-includes-p ;; Or, body includes simd ops		     
+		      (%"isl_ast_node_for_get_body":pointer :pointer ex)
+		      :isl_ast_node_user
+		      :include-not-what :isl_ast_node_for)))
+	       (codegen-write-simd-stride
+		backend
+		;; Mixed Precision isn't supported in the cl-polyhedral
+		;; So any tensors are ok.
+		(aref (kernel-args kernel) 0)
+		kernel))))
+
       ;; [[[TODO!!]]]: Loop Reminder for SIMD Enabled backends
-      
       (codegen-write-for
        backend kernel
        name
+       from to
        (if simd-stride
 	   ;; Unroll by SIMD_Stride
-	   (codegen-write-expr
-	    backend
-	    `("*" ,from ,simd-stride)
-	    kernel)
-	   from)
-       to by body execute-once outermost-p))))
+	   ;; by doing: from * simd_stride
+	   ;; If from=1, from* is rebundant.
+	   (if (string= by "1")
+	       simd-stride
+	       (codegen-write-expr
+		backend
+		`("*" ,by ,simd-stride)
+		kernel))
+	   by)
+       body execute-once outermost-p))))
 
 ;; ~~ Tracing ISL Tree ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -637,3 +655,35 @@ e.g.: c0, c1 ,c2...")
      (%"isl_ast_node_for_get_body":pointer :pointer ex)
      kernel)))
 
+;; ~~ Utils ~~~~~~~~~~~~~~~~~~~~~~~~
+(defun subnode-includes-p (ex include-what &key (include-not-what))
+  "The function traces the node from ex, returning T if finds out include-what first, until reaching include-not-what"
+  (with-inlined-foreign-funcall-mode
+    (labels ((helper (ex)
+	       (let ((type (%"isl_ast_node_get_type":isl-ast-node-type :pointer ex)))
+		 (when (eql type include-what)
+		   (return-from subnode-includes-p t))
+		 
+		 (when (eql type include-not-what)
+		   (return-from subnode-includes-p nil))
+		 
+		 (ecase type
+		   (:isl_ast_node_error (error ":isl-ast-node-error"))
+		   (:isl_ast_node_for
+		    (helper (%"isl_ast_node_for_get_body":pointer :pointer ex)))
+		   (:isl_ast_node_if
+		    ;;(parse-isl-ast-if    backend ex kernel)
+		    (error "Not implemented: parse-isl-ast-if"))
+		   (:isl_ast_node_block
+		    (let* ((children (%"isl_ast_node_block_get_children":pointer :pointer ex))
+			   (n        (%"isl_ast_node_list_n_ast_node":int :pointer children)))
+		      (loop for i upfrom 0 below n
+			    for child = (%"isl_ast_node_list_get_at":pointer :pointer children :int i)
+			    for result = (helper child)
+			    if result do (return-from subnode-includes-p t))))
+		   (:isl_ast_node_mark
+		    ;;(parse-isl-ast-mark  backend ex kernel)
+		    nil)
+		   (:isl_ast_node_user
+		    nil)))))
+      (helper ex))))

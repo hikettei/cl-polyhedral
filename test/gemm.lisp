@@ -5,7 +5,7 @@
 ;; ~~ Gemm 8x8 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 (define-poly-func ((gemm-8x8-lisp-poly :lisp)
-		   (gemm-8x8-gcc-poly  :gcc))
+		   (gemm-8x8-gcc-poly  :gcc :simd t))
     ((:X `(8 8) :float) (:Y `(8 8) :float) (:Z `(8 8) :float))
     (:tile nil :verbose 0)
   (for (i 8)
@@ -14,7 +14,7 @@
 		 (incf (aref :Z i k) (* (aref :X i j) (aref :Y j k)))))))
 
 (define-poly-func ((gemm-8x8-lisp-poly-tiled :lisp)
-		   (gemm-8x8-gcc-poly-tiled  :gcc))
+		   (gemm-8x8-gcc-poly-tiled  :gcc :simd t))
     ((:X `(8 8) :float) (:Y `(8 8) :float) (:Z `(8 8) :float))
     (:tile t :verbose 0)
   (for (i 8)
@@ -54,7 +54,7 @@
 ;; ~~ Gemm 256x256 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 (define-poly-func ((gemm-256x256-lisp-poly :lisp)
-		   (gemm-256x256-gcc-poly  :gcc))
+		   (gemm-256x256-gcc-poly  :gcc :simd t))
     ((:X `(256 256) :float) (:Y `(256 256) :float) (:Z `(256 256) :float))
     (:tile nil :verbose 0)
   (for (i 256)
@@ -63,7 +63,7 @@
 		 (incf (aref :Z i k) (* (aref :X i j) (aref :Y j k)))))))
 
 (define-poly-func ((gemm-256x256-lisp-poly-tiled :lisp)
-		   (gemm-256x256-gcc-poly-tiled  :gcc))
+		   (gemm-256x256-gcc-poly-tiled  :gcc :simd t))
     ((:X `(256 256) :float) (:Y `(256 256) :float) (:Z `(256 256) :float))
     (:tile t :verbose 0)
   (for (i 256)
@@ -95,7 +95,7 @@
 ;; ~~ Gemm 1024x1024 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 (define-poly-func ((gemm-1024x1024-lisp-poly :lisp)
-		   (gemm-1024x1024-gcc-poly  :gcc))
+		   (gemm-1024x1024-gcc-poly  :gcc :simd t))
     ((:X `(1024 1024) :float) (:Y `(1024 1024) :float) (:Z `(1024 1024) :float))
     (:tile nil :verbose 0)
   (for (i 1024)
@@ -104,7 +104,7 @@
 		 (incf (aref :Z i k) (* (aref :X i j) (aref :Y j k)))))))
 
 (define-poly-func ((gemm-1024x1024-lisp-tiled-poly :lisp)
-		   (gemm-1024x1024-gcc-tiled-poly  :gcc))
+		   (gemm-1024x1024-gcc-tiled-poly  :gcc :simd t))
     ((:X `(1024 1024) :float) (:Y `(1024 1024) :float) (:Z `(1024 1024) :float))
     (:tile t :verbose 0)
   (for (i 1024)
