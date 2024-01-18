@@ -115,6 +115,12 @@ instructions = list")
 
 (defun codegen-write-index-ref (backend access-list buffer kernel)
   "A helper function to render the strided index reference"
+  (assert (= (length access-list) (length (buffer-strides buffer)))
+	  ()
+	  "codegen-write-index-ref: Assertion Failed because ranks of the tensor and accessing are inconsistent. ~a and ~a"
+	  access-list
+	  (buffer-strides buffer))
+  
   (codegen-write-expr
    backend
    `("+"

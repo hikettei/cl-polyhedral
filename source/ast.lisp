@@ -429,7 +429,7 @@
 		       backend
 		       :incf-pointer
 		       (codegen-write-id backend (format nil "~a" (buffer-name id)) kernel)
-		       (codegen-write-index-ref backend (cddr ref) id kernel)
+		       (codegen-write-index-ref backend (caddr ref) id kernel)
 		       kernel)
 		      out
 		      nil))))
