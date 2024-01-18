@@ -28,6 +28,7 @@
    (:file "source/core/ast")
    (:file "source/core/polyhedral")
 
+   (:file "source/simd/simd")
    (:file "source/simd/neon")
    
    (:file "source/backends/gcc")

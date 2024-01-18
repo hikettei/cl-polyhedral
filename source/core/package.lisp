@@ -28,7 +28,17 @@
   (:export
    #:codegen-write-simd-pack
    #:codegen-write-simd-unpack
-   #:codegen-write-packed-simd-type)
+   #:codegen-write-packed-simd-type
+   #:codegen-write-simd-instrinsics
+   #:codegen-write-simd-stride
+   #:device-write-simd-intrinsics
+   #:device-write-simd-related-headers)
+
+  ;; SIMD APIs (Low Level)
+  (:export
+   #:device-write-simd-packed-simd-type
+   #:device-write-simd-pack
+   #:device-write-simd-unpack)
 
   ;; Configs
   (:export

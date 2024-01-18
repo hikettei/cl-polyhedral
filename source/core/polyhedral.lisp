@@ -46,7 +46,7 @@ Indicates the level of logging. 0 or 1 or 2
        (config (make-config))
        (backend :lisp)
        (tile nil)
-       (simd 0)
+       (simd nil)
        (verbose *verbose*)
        (tile-element-n-byte (apply #'max (map 'list #'buffer-n-byte (kernel-args kernel)))))
   "Gains the optimized kernel obtained from transforming the given kernel using Polyhedral Model.
@@ -57,10 +57,9 @@ Does the following:
   (declare (type Kernel kernel)
 	   (type Config config)
 	   (type keyword backend)
-	   (type boolean tile)
+	   (type boolean tile simd)
 	   (type fixnum tile-element-n-byte)
-	   (type (integer 0 3) verbose)
-	   (type (integer 0 #.(expt 2 32)) simd))
+	   (type (integer 0 3) verbose))
 
   ;; Updates and adjusts the config with checking whether the contents satisfy the current backends' requirements.
   (setf

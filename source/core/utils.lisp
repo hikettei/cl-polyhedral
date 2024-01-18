@@ -298,3 +298,6 @@ e.g.: (+ a 1) -> a"
 		 `(progn ,@body))))
     (expand input-forms)))
 
+(defmethod cffi:foreign-type-size ((type (eql :float16)))
+  (/ (foreign-type-size :float) 2))
+

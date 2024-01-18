@@ -145,13 +145,21 @@ e.g.: c0, c1 ,c2...")
 				(target   (second replaced-body))
 				(target-buffer (find-if #'(lambda (x) (eql x (second target))) (kernel-args kernel) :key #'buffer-name))
 				(source   (third  replaced-body)))
-			   (codegen-write-set-scalar
-			    backend
-			    callexpr
-			    replaced-body
-			    target-buffer
-			    source
-			    kernel)))
+			   (if simd
+			       (codegen-write-simd-unpack
+				backend
+				kernel
+				target-buffer
+				(codegen-write-index-ref backend (cddr (second replaced-body)) target-buffer kernel)
+				(codegen-write-num backend source kernel)
+				t)
+			       (codegen-write-set-scalar
+				backend
+				callexpr
+				replaced-body
+				target-buffer
+				source
+				kernel))))
 			;; (setf (aref X ...) (aref X ...)
 			((list
 			  (or 'setf 'incf 'decf 'mulcf 'divcf)
@@ -163,20 +171,41 @@ e.g.: c0, c1 ,c2...")
 				(source   (third replaced-body))
 				(source-buffer (find-if #'(lambda (x) (eql x (second source))) (kernel-args kernel) :key #'buffer-name)))
 			   (if (find (second source) *inner-cached*)
-			       (codegen-write-set-scalar
-				backend
-				callexpr
-				replaced-body
-				target-buffer
-				(codegen-write-id backend (format nil "~a_1" (second source)) kernel)
-				kernel)
-			       (codegen-write-array-move
-				backend
-				callexpr
-				replaced-body
-				target-buffer
-				source-buffer
-				kernel))))
+			       (if simd
+				   (codegen-write-simd-unpack
+				    backend
+				    kernel
+				    target-buffer
+				    (codegen-write-index-ref backend (cddr (second replaced-body)) target-buffer kernel)
+				    (codegen-write-simd-pack
+				     backend
+				     kernel
+				     source-buffer
+				     (codegen-write-index-ref backend (cddr (third replaced-body)) source-buffer kernel)
+				     nil)
+				    nil)
+				   (codegen-write-set-scalar
+				    backend
+				    callexpr
+				    replaced-body
+				    target-buffer
+				    (codegen-write-id backend (format nil "__~a_1" (second source)) kernel)
+				    kernel))
+			       (if simd
+				   (codegen-write-simd-instrinsics
+				    backend
+				    callexpr
+				    replaced-body
+				    target-buffer
+				    source-buffer
+				    kernel)
+				   (codegen-write-array-move
+				    backend
+				    callexpr
+				    replaced-body
+				    target-buffer
+				    source-buffer
+				    kernel)))))
 			;; ((or setf incf decf mulcf divcf) (aref X ...) (op ...)
 			((list
 			  (or 'setf 'incf 'decf 'mulcf 'divcf)
@@ -193,14 +222,17 @@ e.g.: c0, c1 ,c2...")
 								(find-if #'(lambda (x) (eql x (second src))) (kernel-args kernel) :key #'buffer-name)))
 							  (if (find (second src) *inner-cached*)
 							      (make-buffer
-							       (intern (format nil "~a_1" (second src)) "KEYWORD")
+							       (intern (format nil "__~a_1" (second src)) "KEYWORD")
 							       nil
 							       (buffer-dtype orig)
 							       :n-byte (buffer-n-byte orig))
 							      orig))
 						      else
 							collect src)))
-			   (codegen-write-instruction
+			   (funcall
+			    (if simd
+				#'codegen-write-simd-intrinsics
+				#'codegen-write-instruction)
 			    backend
 			    callexpr
 			    replaced-body
@@ -368,7 +400,6 @@ e.g.: c0, c1 ,c2...")
 
 (defun merge-body-and-caches (backend kernel body caches simd)
   (declare (type keyword backend)
-	   (type fixnum simd)
 	   (type list caches)
 	   (type string body))
   (let ((out body))
@@ -378,11 +409,23 @@ e.g.: c0, c1 ,c2...")
 		    (format
 		     nil
 		     "~a"
-		     (if (= simd 0)
+		     (if simd
+			 (codegen-write-setf
+			  backend
+			  (codegen-write-packed-simd-type backend kernel id)
+			  (codegen-write-id backend (format nil "__~a_1" (buffer-name id)) kernel)
+			  (codegen-write-simd-pack
+			   backend
+			   kernel
+			   id
+			   (codegen-write-index-ref backend (caddr ref) id kernel)
+			   nil)
+			  out
+			  nil)
 			 (codegen-write-setf
 			  backend
 			  (buffer-dtype id)
-			  (codegen-write-id backend (format nil "~a_1" (buffer-name id)) kernel)
+			  (codegen-write-id backend (format nil "__~a_1" (buffer-name id)) kernel)
 			  (codegen-write-binary-op
 			   backend
 			   :incf-pointer
@@ -390,23 +433,11 @@ e.g.: c0, c1 ,c2...")
 			   (codegen-write-index-ref backend (caddr ref) id kernel)
 			   kernel)
 			  out
-			  nil)
-			 (codegen-write-setf
-			  backend
-			  (simd-dtype backend (buffer-dtype id) simd)
-			  (codegen-write-id backend (format nil "~a_1" (buffer-name id)) kernel)
-			  (simd-pack
-			   backend
-			   id
-			   (codegen-write-index-ref backend (caddr ref) id kernel)
-			   simd)
-			  out
 			  nil)))))
 	      ;; new-form includes the old body?
 	      (if (> (length new-form) (length out))
 		  new-form
-		  (error "merge-body-and-caches: (> (length new-form) (length out))");;(format nil "~a~a" new-form out)
-		  ))))
+		  (error "merge-body-and-caches: (> (length new-form) (length out))")))));;(format nil "~a~a" new-form out)
     out))
 
 (defun parse-isl-ast-for (backend ex kernel explore-outermost-until count simd)
@@ -493,12 +524,16 @@ e.g.: c0, c1 ,c2...")
 			      (let ((itersize (/ (- to from) by))
 				    (cost-threshold (cl-cpus:get-number-of-processors)))
 				(>= itersize cost-threshold)))))))
+	   (updated-p nil)
 	   (body          (with-deeper-indent
-			    (let* ((*determined*
+			    (let* ((n1 (length *inner-cached*))
+				   (*determined*
 				     `(,@*determined* ,name))
 				   (*inner-cached*
 				     (copy-list *inner-cached*))
 				   (caches (make-loop-inner-cache ex kernel)))
+			      (when (not (= n1 (length *inner-cached*)))
+				(setf updated-p t))
 			      (merge-body-and-caches
 			       backend
 			       kernel
@@ -512,29 +547,23 @@ e.g.: c0, c1 ,c2...")
 				    (and count (1+ count)))
 				simd)
 			       caches
-			       simd)))))
+			       simd))))
+	   (simd-stride
+	     (when (and updated-p simd (car (last *inner-cached*))) ;; updated in this session and the kernel is tb vectorized.
+	       (codegen-write-simd-stride backend (car (last *inner-cached*)) kernel))))
+      ;; [[[TODO!!]]]: Loop Reminder for SIMD Enabled backends
+      
       (codegen-write-for
        backend kernel
-       name from to by body execute-once outermost-p))))
-
-;; ~~ SIMD Pack/Unpack Utils ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-(defun simd-pack (backend buffer ref simd)
-  (declare (type keyword backend)
-	   (type buffer buffer)
-	   (type string ref)
-	   (type fixnum simd))
-  (assert (not (= simd 0)) () "Assertion Failed with simd!=0")
-  (codegen-write-simd-pack
-   backend
-   buffer
-   ref
-   simd))
-
-(defun simd-unpack (buffer ref simd)
-  (assert (not (= simd 0)) () "Assertion Failed with simd!=0")
-
-  )
+       name
+       (if simd-stride
+	   ;; Unroll by SIMD_Stride
+	   (codegen-write-expr
+	    backend
+	    `("*" ,from ,simd-stride)
+	    kernel)
+	   from)
+       to by body execute-once outermost-p))))
 
 ;; ~~ Tracing ISL Tree ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

@@ -164,10 +164,10 @@
   (case keyword
     (:float "float")
     (:double "double")
-    (T (error "gcc: unknown kw ~a" keyword))))
+    (T (if (stringp keyword) keyword (error "gcc: unknown kw ~a" keyword)))))
 
 (defmethod codegen-write-setf ((backend (eql :gcc)) dtype variable form body pointer-p)
-  (format nil "~a~a~a ~a = ~a;~%~a~%" (indent) (dtype->ctype dtype) (if pointer-p "*" "") variable form body))  
+  (format nil "~a~a~a ~a = ~a;~%~a" (indent) (dtype->ctype dtype) (if pointer-p "*" "") variable form body))  
 
 (defmethod codegen-function ((backend (eql :gcc)) body kernel)
   (with-output-to-string (out)
@@ -176,6 +176,8 @@
     
     (when (config-of kernel :omp)
       (format out "#include <omp.h>~%"))
+
+    (format out "~a" (device-write-simd-related-headers (config-of kernel :simd-type) kernel))
 
     (format out "#define min(a, b) ((a) < (b) ? (a) : (b))~%#define max(a, b) ((a) > (b) ? (a) : (b))~%")
 
@@ -270,6 +272,16 @@ Configs: ~a"
 	 :void)
 	nil))))
 
+(defun determine-simd-type ()
+  "Determines the arch of cpus"
+  (let ((arch (string-downcase (machine-type))))
+    (cond
+      ((cl-ppcre:scan "arm64" arch) :arm64)
+      ;; TO ADD: AVX512, etc...
+      
+      ;; Failed to determine:
+      (T arch))))
+
 (defmethod codegen-check-configs ((backend (eql :gcc)) config)
   (declare-config config :omp "Set T to use OpenMP." t t)
   (declare-config config
@@ -280,19 +292,81 @@ Configs: ~a"
   (declare-config config :fastmath "Set T to use SLEEF FastMath." t t)
   (declare-config config :cx "Set the compiler to use" t "gcc")
   (declare-config config :flags "Additional flags for gcc" t '("-fPIC" "-O3" "-march=native"))
-  (declare-config config :function-name "The name of a generated function." t (format nil "~a" (gensym "KID"))))
+  (declare-config config :function-name "The name of a generated function." t (format nil "~a" (gensym "KID")))
+  (declare-config config :simd-type
+		  "Indicates the arch of machine e.g.: arm64, x86" t (determine-simd-type))
+  (declare-config config :simd-n-bit
+		  "Indicates the bits of simd register in fixnum" t 128))
 
-;; SIMD Pack/Unpack
-(defmethod codegen-write-packed-simd-type ((backend (eql :gcc)) buffer simd-stride)
-  "float32x4_t")
+(defmethod codegen-write-packed-simd-type ((backend (eql :gcc)) kernel buffer)
+  (device-write-simd-packed-simd-type
+   (config-of kernel :simd-type)
+   kernel
+   buffer))
 
-(defmethod codegen-write-simd-pack ((backend (eql :gcc)) buffer index simd-stride)
+(defmethod codegen-write-simd-pack ((backend (eql :gcc)) kernel buffer index scalar-p)
+  (device-write-simd-pack
+   (config-of kernel :simd-type)
+   kernel
+   buffer
+   index
+   scalar-p))
 
-  )
+(defmethod codegen-write-simd-unpack ((backend (eql :gcc)) kernel buffer index body scalar-p)
+  (device-write-simd-unpack
+   (config-of kernel :simd-type)
+   kernel
+   buffer
+   index
+   body
+   scalar-p))
 
-(defmethod codegen-write-simd-unpack ((backend (eql :gcc)) buffer index simd-stride)
+(defmethod codegen-write-simd-stride ((backend (eql :gcc)) buffer kernel)
+  (round (/ (* 8 (cffi:foreign-type-size (buffer-dtype buffer))) (config-of kernel :simd-n-bit))))
 
-  )
+(defmethod codegen-write-simd-intrinsics ((backend (eql :gcc)) callexpr body target-buffer source-buffers kernel)
+  (flet ((buffer->aref (buffer aref)
+	   ;; TODO: Allowing Scalar as an argument (null (buffer-shape buffer))
+	   (if (buffer-shape buffer)
+	       (codegen-write-simd-pack
+		backend
+		kernel
+		buffer
+		(codegen-write-index-ref backend (cddr aref) buffer kernel)
+		nil)
+	       (buffer-name buffer)))		
+	 (call-bop (op lhs rhs)
+	   (device-write-simd-intrinsics
+	    (config-of kernel :simd-type)
+	    op
+	    target-buffer
+	    target-buffer
+	    lhs
+	    rhs
+	    kernel)))
+    (let* ((tgt  (buffer->aref target-buffer (second body)))
+	   (srcs (map 'list #'buffer->aref source-buffers (cdr (third body))))
+	   (op   (car (third body)))
+	   (res  (reduce
+		  #'(lambda (x y) (call-bop op x y))
+		  srcs)))
+      (format
+       nil
+       "~a~a;"
+       (indent)
+       (codegen-write-simd-unpack
+	backend
+	kernel
+	target-buffer
+	;; body (setf (aref :X (...)))
+	(codegen-write-index-ref backend (cddr (second body)) target-buffer kernel)
+	(ecase callexpr
+	  (:setf op)
+	  (:incf (call-bop '+ tgt res))
+	  (:decf (call-bop '- tgt res))
+	  (:mulcf (call-bop '* tgt res))
+	  (:divcf (call-bop '/ tgt res)))
+	nil)))))
 
 ;; Running gemm
 #+(or)
@@ -323,7 +397,8 @@ Configs: ~a"
 	 (for (j 0 256)
 	      (for (k 0 256)
 		   (incf (aref :Z i k) (* (aref :X i j) (aref :Y j k)))))))
-  :verbose 3
+  :verbose 2
   :tile nil
+  :simd t
   :backend :gcc))
 
