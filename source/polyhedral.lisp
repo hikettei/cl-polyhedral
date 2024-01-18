@@ -45,7 +45,6 @@ Indicates the level of logging. 0 or 1 or 2
      &key
        (config (make-config))
        (backend :lisp)
-       ;;(simd 0)
        (tile nil)
        (verbose *verbose*)
        (tile-element-n-byte (apply #'max (map 'list #'buffer-n-byte (kernel-args kernel)))))
@@ -263,13 +262,16 @@ Does the following:
 				 (s (isl-printer-get-str q)))
 			    
 			    (format t "~%Final C Code(verbose=2): ~%~a~%" s)))
-			(let ((body
-				(codegen-function
-				 backend
-				 ;; When tiled, the outermost loop isn't the best one to split;
-				 ;; explore the deeper
-				 (parse-isl-ast backend ast kernel explore-outermost-until 0)
-				 kernel)))
+			 
+			(let* ((*id-table*
+				 (trace-isl-ast ast kernel))
+			       (body
+				 (codegen-function
+				  backend
+				  ;; When tiled, the outermost loop isn't the best one to split;
+				  ;; explore the deeper
+				  (parse-isl-ast backend ast kernel explore-outermost-until 0)
+				  kernel)))
 			  (with-verbose-level (2)
 			    (format t "~%Final ~a Code(verbose=2):~%~a~%"
 				    backend body))

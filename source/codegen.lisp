@@ -23,7 +23,7 @@
 	(member
 	 :and :or :max :min
 	 :+ :- :* :/ :floor-div-cast-to-int :%
-	 :equal :< :> :<= :>=)))
+	 :equal :< :> :<= :>= :incf-pointer)))
 
 (defgeneric codegen-write-binary-op (backend op lhs rhs kernel)
   (:documentation
@@ -50,6 +50,7 @@ where both of lhs, rhs are the type of string indicating an integer.
 - :<
 - :>=
 - :<=
+- :incf-pointer
 ")
   (:method ((backend (eql :lisp)) op lhs rhs kernel)
     (declare (type binary-op-t op))
@@ -68,7 +69,8 @@ where both of lhs, rhs are the type of string indicating an integer.
       (:> (format nil "(> ~a ~a)" lhs rhs))
       (:>= (format nil "(>= ~a ~a)" lhs rhs))
       (:< (format nil "(< ~a ~a)" lhs rhs))
-      (:<= (format nil "(<= ~a ~a)" lhs rhs)) )))
+      (:<= (format nil "(<= ~a ~a)" lhs rhs))
+      (:incf-pointer (format nil "(aref ~a ~a)" lhs rhs)))))
 
 (defgeneric codegen-write-minus (backend lhs kernel)
   (:documentation "Writes (- lhs)")
@@ -100,7 +102,6 @@ where both of lhs, rhs are the type of string indicating an integer.
 		by name
 		from
 		body))))
-
 
 (defgeneric codegen-write-block (backend instructions kernel)
   (:documentation "Writes a codeblock
@@ -212,13 +213,21 @@ instructions = list")
 	    (with-output-to-string (out)
 	      (loop for aref in (cdr (third body))
 		    for buffer in source-buffers
-		      if (buffer-p buffer) do
-			(format out "(aref ~a ~a) "
-				(buffer-name buffer)
-				(codegen-write-index-ref backend (cddr aref) buffer kernel))
+		    if (buffer-p buffer) do
+		      (if (buffer-shape buffer)
+			  (format out "(aref ~a ~a) "
+				  (buffer-name buffer)
+				  (codegen-write-index-ref backend (cddr aref) buffer kernel))
+			  (format out "~a" (buffer-name buffer)))
 		    else do
 		      (format out "~a" (codegen-write-expr backend buffer kernel)))))))
 
+(defgeneric codegen-write-setf (backend dtype variable form body pointer-p)
+  (:documentation "dtype variable = form && body
+If pointer-p is set to T, variable is a pointer.")
+  (:method ((backend (eql :lisp)) dtype variable form body pointer-p)
+    (format nil "(let ((~a ~a)) ~a)" variable form body)))
+    
 (defgeneric codegen-function (backend body kernel)
   (:documentation "Writes a header and body of the function.
 (defun (gensym) (args...)

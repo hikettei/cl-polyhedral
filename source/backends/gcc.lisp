@@ -40,7 +40,8 @@
     (:> (format nil "~a>~a" lhs rhs))
     (:>= (format nil "~a>=~a" lhs rhs))
     (:< (format nil "~a<~a" lhs rhs))
-    (:<= (format nil "~a<=~a" lhs rhs))))
+    (:<= (format nil "~a<=~a" lhs rhs))
+    (:incf-pointer (format nil "~a[~a]" lhs rhs))))
 
 (defmethod codegen-write-minus ((backend (eql :gcc)) lhs kernel)
   (format nil "-~a" lhs))
@@ -125,9 +126,11 @@
 
 (defmethod codegen-write-instruction ((backend (eql :gcc)) callexpr body target-buffer source-buffers kernel)
   (flet ((buffer->aref (buffer aref)
-	   (format nil "~a[~a]"
-		   (buffer-name buffer)
-		   (codegen-write-index-ref backend (cddr aref) buffer kernel))))
+	   (if (buffer-shape buffer) ;; -> array
+	       (format nil "~a[~a]"
+		       (buffer-name buffer)
+		       (codegen-write-index-ref backend (cddr aref) buffer kernel))
+	       (format nil "~a" (buffer-name buffer)))))
     (format nil "~a~a[~a]~a~a;"
 	    (indent)
 	    (buffer-name target-buffer)
@@ -161,7 +164,10 @@
   (case keyword
     (:float "float")
     (:double "double")
-    (T (error ""))))
+    (T (error "gcc: unknown kw ~a" keyword))))
+
+(defmethod codegen-write-setf ((backend (eql :gcc)) dtype variable form body pointer-p)
+  (format nil "~a~a~a ~a = ~a;~%" (indent) (dtype->ctype dtype) (if pointer-p "*" "") variable form))  
 
 (defmethod codegen-function ((backend (eql :gcc)) body kernel)
   (with-output-to-string (out)
@@ -306,7 +312,7 @@ Configs: ~a"
 	 (for (j 0 256)
 	      (for (k 0 256)
 		   (incf (aref :Z i k) (* (aref :X i j) (aref :Y j k)))))))
-  :verbose 2
+  :verbose 3
   :tile t
   :backend :gcc))
 

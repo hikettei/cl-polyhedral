@@ -1,6 +1,10 @@
 
 (in-package :cl-polyhedral)
 
+(defparameter *determined* nil)
+(defparameter *inner-cached* nil)
+(defparameter *id-table* nil)
+
 (defparameter *indent-level* 0 "Indicates the level of nesting.")
 (defmacro with-deeper-indent (&body body)
   `(let ((*indent-level* (1+ *indent-level*)))
@@ -132,6 +136,10 @@
 	   ,aref
 	   (,(car (third body)) ,@args)))))))
 
+(defun extract-aref-depends-on (expr)
+  (loop for exp in (alexandria:flatten expr)
+	if (gethash exp *id-table*) collect exp))
+
 (defun parse-isl-ast-user (backend ex kernel)
   (declare (type foreign-pointer ex)
 	   (type kernel kernel)
@@ -163,7 +171,7 @@
 				   (%"isl_ast_expr_op_get_arg":pointer :pointer expr :int i)
 				   kernel)
 			do (setf (gethash old-id new-ids) arg))
-		  ;;(maphash
+		  ;; (maphash
 		  ;; #'(lambda (k v)
 		  ;;     (format t "~a -> ~a ~%" k v))
 		  ;; new-ids)
@@ -198,13 +206,21 @@
 				(target-buffer (find-if #'(lambda (x) (eql x (second target))) (kernel-args kernel) :key #'buffer-name))
 				(source   (third replaced-body))
 				(source-buffer (find-if #'(lambda (x) (eql x (second source))) (kernel-args kernel) :key #'buffer-name)))
-			   (codegen-write-array-move
-			    backend
-			    callexpr
-			    replaced-body
-			    target-buffer
-			    source-buffer
-			    kernel)))
+			   (if (find (second source) *inner-cached*)
+			       (codegen-write-set-scalar
+				backend
+				callexpr
+				replaced-body
+				target-buffer
+				(codegen-write-id backend (format nil "~a_1" (second source)) kernel)
+				kernel)
+			       (codegen-write-array-move
+				backend
+				callexpr
+				replaced-body
+				target-buffer
+				source-buffer
+				kernel))))
 			;; ((or setf incf decf mulcf divcf) (aref X ...) (op ...)
 			((list
 			  (or 'setf 'incf 'decf 'mulcf 'divcf)
@@ -217,7 +233,15 @@
 				(source-buffers (loop for src in sources
 						      if (and (listp src) (eql (car src) 'aref))
 							collect
-							(find-if #'(lambda (x) (eql x (second src))) (kernel-args kernel) :key #'buffer-name)
+							(let ((orig
+								(find-if #'(lambda (x) (eql x (second src))) (kernel-args kernel) :key #'buffer-name)))
+							  (if (find (second src) *inner-cached*)
+							      (make-buffer
+							       (intern (format nil "~a_1" (second src)) "KEYWORD")
+							       nil
+							       (buffer-dtype orig)
+							       :n-byte (buffer-n-byte orig))
+							      orig))
 						      else
 							collect src)))
 			   (codegen-write-instruction
@@ -334,6 +358,86 @@
 		 ;;(:isl_ast_expr_op_address_of)
 		 )))))))))
 
+(defun make-loop-inner-cache (expr kernel)
+  "Places `float* x_1 = x + c1 * 10 + ...;`"
+  
+  (with-inlined-foreign-funcall-mode
+    (let* ((body (%"isl_ast_node_for_get_body":pointer :pointer expr))
+	   (next-type (%"isl_ast_node_get_type":isl-ast-node-type :pointer body)))
+      ;; != Loop, Block
+      (case next-type
+	(:isl_ast_node_for)
+	(:isl_ast_node_block
+	 (let* ((children (%"isl_ast_node_block_get_children":pointer :pointer body))
+		(n        (%"isl_ast_node_list_n_ast_node":int :pointer children)))
+	   (loop for i upfrom 0 below n
+		 for child = (%"isl_ast_node_list_get_at":pointer :pointer children :int i)
+		 when (not (eql :isl_ast_node_for (%"isl_ast_node_get_type":isl-ast-node-type :pointer child)))
+		   do (return-from make-loop-inner-cache nil))))
+	(T
+	 (return-from make-loop-inner-cache nil))))
+    
+    (flet ((find-id (id)
+	     (find id (kernel-args kernel) :test #'eql :key #'buffer-name))
+	   (determined-p (name aref)
+	     (and
+	      (null (find name *inner-cached*))
+	      (every
+	       #'(lambda (x) (find (gethash x *id-table*) *determined* :test #'string=))
+	       (extract-aref-depends-on aref))))
+	   (shuffle-helper (aref)
+	     (map-tree
+	      #'(lambda (form)
+		  (if (or (symbolp form)
+			  (keywordp form))
+		      (or (gethash form *id-table*)
+			  form)
+		      form))
+	      aref)))
+      (loop for inst across (kernel-instructions kernel)
+	    append
+	    (loop for ref in `(,@(coerce (inst-sources inst) 'list) ,(inst-target inst))
+		  for id  = (and (listp ref) (find-id (second ref)))
+		  ;; (aref :X (...)) 
+		  when (and
+			(listp ref)
+			(eql 'aref (car ref))
+			(determined-p (second ref) (third ref))
+			id
+			(eql :in (buffer-io id))) ;; In for now, TODO: support for :out, :io
+		    collect
+		    (progn
+		      (push (second ref) *inner-cached*)
+		      `(,id . ,(shuffle-helper ref))))))))
+
+(defun merge-body-and-caches (backend kernel body caches)
+  (declare (type keyword backend)
+	   (type list caches)
+	   (type string body))
+  (let ((out body))
+    (loop for (id . ref) in caches do
+      (setf out
+	    (let ((new-form
+		    (format
+		     nil
+		     "~a"
+		     (codegen-write-setf
+		      backend
+		      (buffer-dtype id)
+		      (codegen-write-id backend (format nil "~a_1" (buffer-name id)) kernel)
+		      (codegen-write-binary-op
+		       backend
+		       :incf-pointer
+		       (codegen-write-id backend (format nil "~a" (buffer-name id)) kernel)
+		       (codegen-write-index-ref backend (cddr ref) id kernel)
+		       kernel)
+		      out
+		      nil))))
+	      ;; new-form includes the old body?
+	      (if (> (length new-form) (length out))
+		  new-form
+		  (format nil "~a~a" new-form out)))))
+    out))
 
 (defun parse-isl-ast-for (backend ex kernel explore-outermost-until count)
   (with-inlined-foreign-funcall-mode
@@ -420,16 +524,99 @@
 				    (cost-threshold (cl-cpus:get-number-of-processors)))
 				(>= itersize cost-threshold)))))))
 	   (body          (with-deeper-indent
-			    (parse-isl-ast
-			     backend
-			     (%"isl_ast_node_for_get_body":pointer :pointer ex)
-			     kernel
-			     explore-outermost-until
-			     (if outermost-p ;; If outermost was found -> do not parallelize the subsequent loops
-				 nil
-				 (and count (1+ count)))))))
+			    (let* ((*determined*
+				     `(,@*determined* ,name))
+				   (*inner-cached*
+				     (copy-list *inner-cached*))
+				   (caches (make-loop-inner-cache ex kernel)))
+			      (merge-body-and-caches
+			       backend
+			       kernel
+			       (parse-isl-ast
+				backend
+				(%"isl_ast_node_for_get_body":pointer :pointer ex)
+				kernel
+				explore-outermost-until
+				(if outermost-p ;; If outermost was found -> do not parallelize the subsequent loops
+				    nil
+				    (and count (1+ count))))
+			       caches)))))
       (codegen-write-for
        backend kernel
        name from to by body execute-once outermost-p))))
 
       
+
+
+;; ~~ Tracing ISL Tree ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+(defun trace-isl-ast (ex kernel)
+  "f(ex, kernel) -> HashTable(old_id -> new_old, ...)"
+  (alexandria:alist-hash-table (%trace-isl-ast ex kernel)))
+
+(defun %trace-isl-ast (ex kernel)
+  (declare (type Kernel kernel))
+  
+  (with-inlined-foreign-funcall-mode
+    (let ((type (%"isl_ast_node_get_type":isl-ast-node-type :pointer ex)))
+      (ecase type
+	(:isl_ast_node_error
+	 (error ":isl-ast-node-error"))
+	(:isl_ast_node_for
+	 (trace-isl-ast-for ex kernel))
+	(:isl_ast_node_if
+	 ;;(parse-isl-ast-if    backend ex kernel)
+	 (error "Not implemented: parse-isl-ast-if")
+	 )
+	(:isl_ast_node_block
+	 (trace-isl-ast-block ex kernel))
+	(:isl_ast_node_mark
+	 ;;(parse-isl-ast-mark  backend ex kernel)
+	 "")
+	(:isl_ast_node_user
+	 (trace-isl-ast-node-user ex kernel))))))
+
+(defun trace-isl-ast-node-user (ex kernel)
+  (with-inlined-foreign-funcall-mode
+    (let ((expr (%"isl_ast_node_user_get_expr":pointer :pointer ex)))
+      (%"isl_ast_expr_free":void :pointer expr)
+      (let* ((first-expr (%"isl_ast_expr_op_get_arg":pointer :pointer expr :int 0))
+	     (n          (%"isl_ast_expr_get_op_n_arg":int   :pointer expr))
+	     (id         (prog1
+			     (%"isl_ast_expr_id_get_id":pointer :pointer first-expr)
+			   (%"isl_ast_expr_free":void :pointer first-expr)))
+	     (name       (prog1
+			     (%"isl_id_get_name":string :pointer id)
+			   (%"isl_id_free":void :pointer id))))
+	(loop for instruction across (kernel-instructions kernel)
+	      if (string= (format nil "~(~a~)" (inst-op instruction)) (string-downcase name))
+		append
+		(let ((old-ids
+			(loop for domain across (kernel-domains kernel)
+			      append
+			      (loop for iname in (inst-depends-on instruction)
+				    if (eql iname (domain-subscript domain))
+				      collect iname))))
+		  (loop for i upfrom 1  below n
+			for old-id   in old-ids
+			for arg = (parse-isl-expr
+				   :lisp
+				   (%"isl_ast_expr_op_get_arg":pointer :pointer expr :int i)
+				   kernel)
+			collect `(,old-id . ,arg))))))))
+
+(defun trace-isl-ast-block (ex kernel)
+  (with-inlined-foreign-funcall-mode
+    (let* ((children (%"isl_ast_node_block_get_children":pointer :pointer ex))
+	   (n        (%"isl_ast_node_list_n_ast_node":int :pointer children)))
+      (loop for i upfrom 0 below n
+	    for child = (%"isl_ast_node_list_get_at":pointer :pointer children :int i)
+	    append
+	    (%trace-isl-ast child kernel)))))
+
+(defun trace-isl-ast-for (ex kernel)
+  (with-inlined-foreign-funcall-mode
+    (%trace-isl-ast
+     (%"isl_ast_node_for_get_body":pointer :pointer ex)
+     kernel)))
+

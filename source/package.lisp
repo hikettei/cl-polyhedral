@@ -19,6 +19,7 @@
    #:codegen-write-expr
    #:codegen-write-array-move
    #:codegen-write-instruction
+   #:codegen-write-setf
    #:codegen-function
    #:load-optimized-function
    #:codegen-check-configs)

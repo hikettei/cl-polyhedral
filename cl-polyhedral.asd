@@ -23,6 +23,7 @@
    (:file "source/hwloc")
    (:file "source/utils")
    (:file "source/tiling")
+   (:file "source/simd")
    (:file "source/memory-locality")
    (:file "source/ast")
    (:file "source/polyhedral")
