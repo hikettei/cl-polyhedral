@@ -15,21 +15,26 @@
 	       #:numcl)
   :serial t
   :components
-  ((:file "source/package")
-   (:file "source/graph")
-   (:file "source/graph-constructor")
-   (:file "source/codegen")
-   (:file "source/isl")
-   (:file "source/hwloc")
-   (:file "source/utils")
-   (:file "source/tiling")
-   (:file "source/simd")
-   (:file "source/memory-locality")
-   (:file "source/ast")
-   (:file "source/polyhedral")
+  ((:file "source/core/package")
+   (:file "source/core/graph")
+   (:file "source/core/graph-constructor")
+   (:file "source/core/codegen")
+   (:file "source/core/isl")
+   (:file "source/core/hwloc")
+   (:file "source/core/utils")
+   (:file "source/core/tiling")
+   (:file "source/core/simd")
+   (:file "source/core/memory-locality")
+   (:file "source/core/ast")
+   (:file "source/core/polyhedral")
+
+   (:file "source/simd/neon")
+   
    (:file "source/backends/gcc")
    (:file "source/backends/opt-lisp")
-   (:file "source/backends/metal"))
+   (:file "source/backends/metal")
+
+   )
   :in-order-to
   ((test-op (asdf:test-op cl-polyhedral/test))))    
 
