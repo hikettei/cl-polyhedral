@@ -167,7 +167,7 @@
     (T (error "gcc: unknown kw ~a" keyword))))
 
 (defmethod codegen-write-setf ((backend (eql :gcc)) dtype variable form body pointer-p)
-  (format nil "~a~a~a ~a = ~a;~%" (indent) (dtype->ctype dtype) (if pointer-p "*" "") variable form))  
+  (format nil "~a~a~a ~a = ~a;~%~a~%" (indent) (dtype->ctype dtype) (if pointer-p "*" "") variable form body))  
 
 (defmethod codegen-function ((backend (eql :gcc)) body kernel)
   (with-output-to-string (out)
@@ -282,6 +282,17 @@ Configs: ~a"
   (declare-config config :flags "Additional flags for gcc" t '("-fPIC" "-O3" "-march=native"))
   (declare-config config :function-name "The name of a generated function." t (format nil "~a" (gensym "KID"))))
 
+;; SIMD Pack/Unpack
+(defmethod codegen-write-packed-simd-type ((backend (eql :gcc)) buffer simd-stride)
+  "float32x4_t")
+
+(defmethod codegen-write-simd-pack ((backend (eql :gcc)) buffer index simd-stride)
+
+  )
+
+(defmethod codegen-write-simd-unpack ((backend (eql :gcc)) buffer index simd-stride)
+
+  )
 
 ;; Running gemm
 #+(or)
@@ -313,6 +324,6 @@ Configs: ~a"
 	      (for (k 0 256)
 		   (incf (aref :Z i k) (* (aref :X i j) (aref :Y j k)))))))
   :verbose 3
-  :tile t
+  :tile nil
   :backend :gcc))
 

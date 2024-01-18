@@ -1,66 +1,22 @@
 
 (in-package :cl-polyhedral)
 
-(defparameter *determined* nil)
-(defparameter *inner-cached* nil)
-(defparameter *id-table* nil)
+;; Global Configurations and Parameters for compiling.
+(defparameter *determined* nil
+  "A list of determined symbol during expansion of the iterations.
+e.g.: c0, c1 ,c2...")
+(defparameter *inner-cached* nil
+  "A list of buffers that is cached during expansion")
+
+(defparameter *id-table* nil
+  "A hash table which records id -> buffer")
 
 (defparameter *indent-level* 0 "Indicates the level of nesting.")
 (defmacro with-deeper-indent (&body body)
   `(let ((*indent-level* (1+ *indent-level*)))
      ,@body))
 
-(defcenum :isl-ast-node-type
-  (:isl_ast_node_error -1)
-  (:isl_ast_node_for 1)
-  :isl_ast_node_if
-  :isl_ast_node_block
-  :isl_ast_node_mark
-  :isl_ast_node_user)
-
-(defcenum :isl-ast-expr-type
-  (:isl_ast_expr_error -1)
-  :isl_ast_expr_op
-  :isl_ast_expr_id
-  :isl_ast_expr_int)
-
-(defcenum :isl-ast-expr-op-type
-  (:isl_ast_expr_op_error -1)
-  :isl_ast_expr_op_and
-  :isl_ast_expr_op_and_then
-  :isl_ast_expr_op_or
-  :isl_ast_expr_op_or_else
-
-  ;; maxmin
-  :isl_ast_expr_op_max
-  :isl_ast_expr_op_min
-
-  ;; (- a)
-  :isl_ast_expr_op_minus
-
-  ;; Binary_Ops
-  :isl_ast_expr_op_add
-  :isl_ast_expr_op_sub
-  :isl_ast_expr_op_mul
-  :isl_ast_expr_op_div
-  
-  :isl_ast_expr_op_fdiv_q
-  :isl_ast_expr_op_pdiv_q
-  :isl_ast_expr_op_pdiv_r
-  :isl_ast_expr_op_zdiv_r
-  :isl_ast_expr_op_cond
-  :isl_ast_expr_op_select
-  :isl_ast_expr_op_eq
-  :isl_ast_expr_op_le
-  :isl_ast_expr_op_lt
-  :isl_ast_expr_op_ge
-  :isl_ast_expr_op_gt
-  :isl_ast_expr_op_call
-  :isl_ast_expr_op_access
-  :isl_ast_expr_op_member
-  :isl_ast_expr_op_address_of)
-
-(defun parse-isl-ast (backend ex kernel explore-outermost-until count)
+(defun parse-isl-ast (backend ex kernel explore-outermost-until count simd)
   (declare (type Kernel kernel))
   
   (with-inlined-foreign-funcall-mode
@@ -68,22 +24,22 @@
       ;;(print type)
       (ecase type
 	(:isl_ast_node_error
-	 (error ":isl-ast-node-error"))
+	 (error ":isl-ast-node-error is occured"))
 	(:isl_ast_node_for
-	 (parse-isl-ast-for backend ex kernel explore-outermost-until count))
+	 (parse-isl-ast-for backend ex kernel explore-outermost-until count simd))
 	(:isl_ast_node_if
 	 ;;(parse-isl-ast-if    backend ex kernel)
-	 (error "Not implemented: parse-isl-ast-if")
+	 (error "parse-isl-ast-if is remained to be implemented.")
 	 )
 	(:isl_ast_node_block
-	 (parse-isl-ast-block backend ex kernel explore-outermost-until count))
+	 (parse-isl-ast-block backend ex kernel explore-outermost-until count simd))
 	(:isl_ast_node_mark
 	 ;;(parse-isl-ast-mark  backend ex kernel)
 	 "")
 	(:isl_ast_node_user
-	 (parse-isl-ast-user  backend ex kernel))))))
+	 (parse-isl-ast-user  backend ex kernel simd))))))
 
-(defun parse-isl-ast-block (backend ex kernel explore-outermost-until count)
+(defun parse-isl-ast-block (backend ex kernel explore-outermost-until count simd)
   (with-inlined-foreign-funcall-mode
     (let* ((children (%"isl_ast_node_block_get_children":pointer :pointer ex))
 	   (n        (%"isl_ast_node_list_n_ast_node":int :pointer children)))
@@ -92,7 +48,7 @@
        (loop for i upfrom 0 below n
 	     for child = (%"isl_ast_node_list_get_at":pointer :pointer children :int i)
 	     collect
-	     (parse-isl-ast backend child kernel explore-outermost-until count))
+	     (parse-isl-ast backend child kernel explore-outermost-until count simd))
        kernel))))
 
 (defun replace-body-with-new-ids (body new-ids)
@@ -140,7 +96,7 @@
   (loop for exp in (alexandria:flatten expr)
 	if (gethash exp *id-table*) collect exp))
 
-(defun parse-isl-ast-user (backend ex kernel)
+(defun parse-isl-ast-user (backend ex kernel simd)
   (declare (type foreign-pointer ex)
 	   (type kernel kernel)
 	   (type keyword backend))
@@ -410,8 +366,9 @@
 		      (push (second ref) *inner-cached*)
 		      `(,id . ,(shuffle-helper ref))))))))
 
-(defun merge-body-and-caches (backend kernel body caches)
+(defun merge-body-and-caches (backend kernel body caches simd)
   (declare (type keyword backend)
+	   (type fixnum simd)
 	   (type list caches)
 	   (type string body))
   (let ((out body))
@@ -421,25 +378,38 @@
 		    (format
 		     nil
 		     "~a"
-		     (codegen-write-setf
-		      backend
-		      (buffer-dtype id)
-		      (codegen-write-id backend (format nil "~a_1" (buffer-name id)) kernel)
-		      (codegen-write-binary-op
-		       backend
-		       :incf-pointer
-		       (codegen-write-id backend (format nil "~a" (buffer-name id)) kernel)
-		       (codegen-write-index-ref backend (caddr ref) id kernel)
-		       kernel)
-		      out
-		      nil))))
+		     (if (= simd 0)
+			 (codegen-write-setf
+			  backend
+			  (buffer-dtype id)
+			  (codegen-write-id backend (format nil "~a_1" (buffer-name id)) kernel)
+			  (codegen-write-binary-op
+			   backend
+			   :incf-pointer
+			   (codegen-write-id backend (format nil "~a" (buffer-name id)) kernel)
+			   (codegen-write-index-ref backend (caddr ref) id kernel)
+			   kernel)
+			  out
+			  nil)
+			 (codegen-write-setf
+			  backend
+			  (simd-dtype backend (buffer-dtype id) simd)
+			  (codegen-write-id backend (format nil "~a_1" (buffer-name id)) kernel)
+			  (simd-pack
+			   backend
+			   id
+			   (codegen-write-index-ref backend (caddr ref) id kernel)
+			   simd)
+			  out
+			  nil)))))
 	      ;; new-form includes the old body?
 	      (if (> (length new-form) (length out))
 		  new-form
-		  (format nil "~a~a" new-form out)))))
+		  (error "merge-body-and-caches: (> (length new-form) (length out))");;(format nil "~a~a" new-form out)
+		  ))))
     out))
 
-(defun parse-isl-ast-for (backend ex kernel explore-outermost-until count)
+(defun parse-isl-ast-for (backend ex kernel explore-outermost-until count simd)
   (with-inlined-foreign-funcall-mode
     (let* ((execute-once (%"isl_ast_node_for_is_degenerate":boolean :pointer ex))
 	   (iter         (%"isl_ast_node_for_get_iterator":pointer  :pointer ex))
@@ -539,14 +509,32 @@
 				explore-outermost-until
 				(if outermost-p ;; If outermost was found -> do not parallelize the subsequent loops
 				    nil
-				    (and count (1+ count))))
-			       caches)))))
+				    (and count (1+ count)))
+				simd)
+			       caches
+			       simd)))))
       (codegen-write-for
        backend kernel
        name from to by body execute-once outermost-p))))
 
-      
+;; ~~ SIMD Pack/Unpack Utils ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+(defun simd-pack (backend buffer ref simd)
+  (declare (type keyword backend)
+	   (type buffer buffer)
+	   (type string ref)
+	   (type fixnum simd))
+  (assert (not (= simd 0)) () "Assertion Failed with simd!=0")
+  (codegen-write-simd-pack
+   backend
+   buffer
+   ref
+   simd))
+
+(defun simd-unpack (buffer ref simd)
+  (assert (not (= simd 0)) () "Assertion Failed with simd!=0")
+
+  )
 
 ;; ~~ Tracing ISL Tree ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

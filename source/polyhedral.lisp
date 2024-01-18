@@ -46,6 +46,7 @@ Indicates the level of logging. 0 or 1 or 2
        (config (make-config))
        (backend :lisp)
        (tile nil)
+       (simd 0)
        (verbose *verbose*)
        (tile-element-n-byte (apply #'max (map 'list #'buffer-n-byte (kernel-args kernel)))))
   "Gains the optimized kernel obtained from transforming the given kernel using Polyhedral Model.
@@ -58,7 +59,8 @@ Does the following:
 	   (type keyword backend)
 	   (type boolean tile)
 	   (type fixnum tile-element-n-byte)
-	   (type (integer 0 3) verbose))
+	   (type (integer 0 3) verbose)
+	   (type (integer 0 #.(expt 2 32)) simd))
 
   ;; Updates and adjusts the config with checking whether the contents satisfy the current backends' requirements.
   (setf
@@ -104,8 +106,7 @@ Does the following:
 		(foreign-funcall
 		 "isl_schedule_dump"
 		 :pointer schedule
-		 :void))
-	      
+		 :void))	      
 	      
 	      (with-verbose-level (2)
 		;; Displaying The Original C Code
@@ -270,7 +271,7 @@ Does the following:
 				  backend
 				  ;; When tiled, the outermost loop isn't the best one to split;
 				  ;; explore the deeper
-				  (parse-isl-ast backend ast kernel explore-outermost-until 0)
+				  (parse-isl-ast backend ast kernel explore-outermost-until 0 simd)
 				  kernel)))
 			  (with-verbose-level (2)
 			    (format t "~%Final ~a Code(verbose=2):~%~a~%"

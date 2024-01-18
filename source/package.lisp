@@ -24,6 +24,12 @@
    #:load-optimized-function
    #:codegen-check-configs)
 
+  ;; SIMD Backend
+  (:export
+   #:codegen-write-simd-pack
+   #:codegen-write-simd-unpack
+   #:codegen-write-packed-simd-type)
+
   ;; Configs
   (:export
    #:*indent-level*
